@@ -5,3 +5,28 @@
 - [2026-04-07] T003 완료: SPEC §1 전체 의존성 (zustand, skia, admob, iap 등)
 - [2026-04-07] T004 완료: ESLint/Prettier/Husky 설정, pre-commit → pnpm verify
 - [2026-04-07] T005 완료: Jest + ts-jest 셋업, 샘플 테스트 3개 통과
+- [2026-04-07] T006 완료: pnpm verify 통합 스크립트 + Husky pre-commit 정상 동작
+- [2026-04-07] T010 완료: types.ts, constants.ts SPEC 일치 확인 (T002에서 생성됨)
+- [2026-04-07] T011 완료: rules.ts 6개 순수 함수 구현
+- [2026-04-07] T012 완료: rules.test.ts 21개 테스트 전체 통과
+- [2026-04-07] T013 완료: generator.ts 역방향 레벨 생성기
+- [2026-04-07] T015 완료: difficulty.ts 난이도 곡선 (getDifficulty, getZenParams)
+- [2026-04-07] T014 완료: generator.test.ts 7개 테스트 통과
+- [2026-04-07] T016 완료: 코어 커버리지 98.9% (40 tests, 4 suites)
+- [2026-04-07] T020 완료: userStore zustand + persist
+- [2026-04-07] T021 완료: settingsStore zustand + persist
+- [2026-04-07] T022 완료: gameStore 세션 전용 (core 연동)
+- [2026-04-07] T030 완료: 사운드 placeholder 20개
+- [2026-04-07] T031 완료: SoundManager (expo-av)
+- [2026-04-07] T032 완료: Haptic 유틸 (expo-haptics)
+- [2026-04-07] T040 완료: ThemeProvider 3테마
+- [2026-04-07] T041 완료: Tube Skia 컴포넌트
+- [2026-04-07] T042 완료: PourAnimation Reanimated
+- [2026-04-07] T043 완료: HUD 컴포넌트
+- [2026-04-07] T050~T055 완료: 메인메뉴, 게임화면, 클리어모달, 설정, 통계, 온보딩
+- [2026-04-07] T060~T063 완료: AdManager, AdBanner, GDPR, 정책 테스트 10개
+- [2026-04-07] T070~T072 완료: SubscriptionManager, 상점 화면, 복원 로직
+- [2026-04-07] T080 완료: i18n ko/en 52키 + 유틸 함수
+- [2026-04-07] T090 완료: pnpm verify 전체 통과 (77 tests)
+- [2026-04-07] T091 완료: 전체 커버리지 95% Stmts
+- [2026-04-07] T092 완료: SPEC §8 체크리스트 코드 수준 검토
