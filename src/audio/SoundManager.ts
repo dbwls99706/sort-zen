@@ -26,29 +26,29 @@ const BGM_VOLUME = 0.3;
 
 /* eslint-disable @typescript-eslint/no-require-imports */
 const SOUND_ASSETS: Record<SoundKey, number> = {
-  pour_0: require('./assets/pour_c4.mp3'),
-  pour_1: require('./assets/pour_d4.mp3'),
-  pour_2: require('./assets/pour_e4.mp3'),
-  pour_3: require('./assets/pour_f4.mp3'),
-  pour_4: require('./assets/pour_g4.mp3'),
-  pour_5: require('./assets/pour_a4.mp3'),
-  pour_6: require('./assets/pour_b4.mp3'),
-  pour_7: require('./assets/pour_c5.mp3'),
-  pour_8: require('./assets/pour_d5.mp3'),
-  pour_9: require('./assets/pour_e5.mp3'),
-  pour_10: require('./assets/pour_f5.mp3'),
-  pour_11: require('./assets/pour_g5.mp3'),
-  select: require('./assets/tube_select.mp3'),
-  deselect: require('./assets/tube_deselect.mp3'),
-  complete_tube: require('./assets/complete_tube.mp3'),
-  level_clear: require('./assets/level_clear.mp3'),
-  coin: require('./assets/coin.mp3'),
-  button_tap: require('./assets/button_tap.mp3'),
+  pour_0: require('./assets/pour_c4.wav'),
+  pour_1: require('./assets/pour_d4.wav'),
+  pour_2: require('./assets/pour_e4.wav'),
+  pour_3: require('./assets/pour_f4.wav'),
+  pour_4: require('./assets/pour_g4.wav'),
+  pour_5: require('./assets/pour_a4.wav'),
+  pour_6: require('./assets/pour_b4.wav'),
+  pour_7: require('./assets/pour_c5.wav'),
+  pour_8: require('./assets/pour_d5.wav'),
+  pour_9: require('./assets/pour_e5.wav'),
+  pour_10: require('./assets/pour_f5.wav'),
+  pour_11: require('./assets/pour_g5.wav'),
+  select: require('./assets/tube_select.wav'),
+  deselect: require('./assets/tube_deselect.wav'),
+  complete_tube: require('./assets/complete_tube.wav'),
+  level_clear: require('./assets/level_clear.wav'),
+  coin: require('./assets/coin.wav'),
+  button_tap: require('./assets/button_tap.wav'),
 };
 
 const BGM_ASSETS = {
-  zen: require('./assets/bgm_zen.mp3'),
-  classic: require('./assets/bgm_classic.mp3'),
+  zen: require('./assets/bgm_zen.wav'),
+  classic: require('./assets/bgm_classic.wav'),
 };
 /* eslint-enable @typescript-eslint/no-require-imports */
 
