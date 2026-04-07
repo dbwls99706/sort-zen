@@ -25,7 +25,13 @@
       "package": "com.sortzen.app"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-6671440092809524~5364355009"
+        }
+      ]
     ]
   }
 }
