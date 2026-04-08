@@ -5,6 +5,7 @@ import { useTheme } from '../src/components/ThemeProvider';
 import { useUserStore } from '../src/store/userStore';
 import { SoundManager } from '../src/audio/SoundManager';
 import { Haptic } from '../src/utils/haptics';
+import { AdBanner } from '../src/ads/banner';
 
 export default function MainMenu() {
   const router = useRouter();
@@ -74,6 +75,8 @@ export default function MainMenu() {
           </Text>
         </Pressable>
       </View>
+
+      <AdBanner />
     </SafeAreaView>
   );
 }

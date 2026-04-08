@@ -6,6 +6,7 @@ import { useUserStore } from '../src/store/userStore';
 import { useTheme } from '../src/components/ThemeProvider';
 import { SoundManager } from '../src/audio/SoundManager';
 import { Haptic } from '../src/utils/haptics';
+import { AdBanner } from '../src/ads/banner';
 
 export default function StatsScreen() {
   const router = useRouter();
@@ -59,6 +60,8 @@ export default function StatsScreen() {
           theme={theme}
         />
       </View>
+
+      <AdBanner />
     </SafeAreaView>
   );
 }

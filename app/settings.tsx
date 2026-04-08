@@ -6,6 +6,7 @@ import { useSettingsStore } from '../src/store/settingsStore';
 import { useTheme } from '../src/components/ThemeProvider';
 import { SoundManager } from '../src/audio/SoundManager';
 import { Haptic } from '../src/utils/haptics';
+import { AdBanner } from '../src/ads/banner';
 
 type Theme = 'pastel' | 'neon' | 'dark';
 const THEMES: Theme[] = ['pastel', 'neon', 'dark'];
@@ -89,6 +90,8 @@ export default function SettingsScreen() {
           </Pressable>
         ))}
       </View>
+
+      <AdBanner />
     </SafeAreaView>
   );
 }

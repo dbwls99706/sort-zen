@@ -7,6 +7,7 @@ import { useUserStore } from '../src/store/userStore';
 import { SubscriptionManager } from '../src/iap/SubscriptionManager';
 import { SoundManager } from '../src/audio/SoundManager';
 import { Haptic } from '../src/utils/haptics';
+import { AdBanner } from '../src/ads/banner';
 
 export default function ShopScreen() {
   const router = useRouter();
@@ -143,6 +144,8 @@ export default function ShopScreen() {
           </Text>
         </View>
       )}
+
+      <AdBanner />
     </SafeAreaView>
   );
 }
