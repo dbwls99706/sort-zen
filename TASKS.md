@@ -62,3 +62,10 @@
 - [x] T090 전체 `pnpm typecheck` `pnpm lint` `pnpm test` 통과 — 77 tests, 0 warnings
 - [x] T091 `pnpm test:coverage` 전체 70% 이상 — 95% Stmts 달성
 - [x] T092 SPEC §8 출시 전 체크리스트 검토 — 코드 수준 전체 확인, 외부 계정 필요 항목만 잔여
+
+## Phase 11: 통합 (Integration)
+- [ ] T093 `SubscriptionManager.init()` → `_layout.tsx`에서 호출 + destroy cleanup
+- [ ] T094 `AdBanner` 배치 → 메인메뉴/설정/상점/통계 화면 하단 (docs/03 §1)
+- [ ] T095 온보딩 첫 실행 게이트 → settingsStore에 `hasSeenOnboarding` + index.tsx 조건부 렌더
+- [ ] T096 i18n 적용 → 모든 화면/컴포넌트 하드코딩 문자열을 `t()` 호출로 교체 + 언어 선택 UI
+- [ ] T097 테마 잠금 → neon/dark 구독자 전용 (SPEC §6.4)

@@ -5,6 +5,7 @@ import mobileAds, { AdsConsent } from 'react-native-google-mobile-ads';
 import { ThemeProvider } from '../src/components/ThemeProvider';
 import { AdManager } from '../src/ads/AdManager';
 import { SoundManager } from '../src/audio/SoundManager';
+import { SubscriptionManager } from '../src/iap/SubscriptionManager';
 
 export default function RootLayout() {
   useEffect(() => {
@@ -21,9 +22,11 @@ export default function RootLayout() {
       }
     })();
 
+    SubscriptionManager.init();
     SoundManager.preload();
 
     return () => {
+      SubscriptionManager.destroy();
       SoundManager.unloadAll();
     };
   }, []);
