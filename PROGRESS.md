@@ -34,3 +34,8 @@
 - [2026-04-07] 사운드 자산 20개 WAV 생성 (12음 실로폰 + UI + BGM)
 - [2026-04-07] 게임 화면 통합: ClearModal 연결, 레벨 진행, 코인 보상, pour 사운드 트리거
 - [2026-04-07] 남은 통합: SubscriptionManager.init, AdBanner 배치, Onboarding, i18n 적용, 테마 잠금, 앱 아이콘
+- [2026-04-08] T093 완료: SubscriptionManager.init() + destroy() → _layout.tsx 연결
+- [2026-04-08] T094 완료: AdBanner 메인메뉴/설정/상점/통계 화면에 배치
+- [2026-04-08] T095 완료: 온보딩 첫 실행 게이트 (hasSeenOnboarding + 조건부 렌더)
+- [2026-04-08] T096 완료: i18n 전체 적용 (9개 파일, 53키) + 언어 선택 UI
+- [2026-04-08] T097 완료: 테마 잠금 (neon/dark 비구독자 잠금 + 상점 이동)
