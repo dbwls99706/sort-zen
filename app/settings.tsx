@@ -3,6 +3,7 @@ import { View, Text, Switch, Pressable, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSettingsStore } from '../src/store/settingsStore';
+import { useUserStore } from '../src/store/userStore';
 import { useTheme } from '../src/components/ThemeProvider';
 import { SoundManager } from '../src/audio/SoundManager';
 import { Haptic } from '../src/utils/haptics';
@@ -32,6 +33,10 @@ export default function SettingsScreen() {
     setTheme,
     setLanguage,
   } = useSettingsStore();
+  const isPremium = useUserStore((s) => s.isPremium);
+
+  const isThemeLocked = (thm: Theme): boolean =>
+    (thm === 'neon' || thm === 'dark') && !isPremium;
 
   const handleBack = () => {
     SoundManager.play('button_tap');
@@ -76,27 +81,35 @@ export default function SettingsScreen() {
         {t('theme')}
       </Text>
       <View style={styles.themeRow}>
-        {THEMES.map((thm) => (
-          <Pressable
-            key={thm}
-            style={[
-              styles.themeButton,
-              {
-                backgroundColor: theme.surface,
-                borderColor:
-                  currentTheme === thm ? theme.accent : 'transparent',
-              },
-            ]}
-            onPress={() => {
-              setTheme(thm);
-              Haptic.light();
-            }}
-          >
-            <Text style={[styles.themeText, { color: theme.text }]}>
-              {t(thm)}
-            </Text>
-          </Pressable>
-        ))}
+        {THEMES.map((thm) => {
+          const locked = isThemeLocked(thm);
+          return (
+            <Pressable
+              key={thm}
+              style={[
+                styles.themeButton,
+                {
+                  backgroundColor: theme.surface,
+                  borderColor:
+                    currentTheme === thm ? theme.accent : 'transparent',
+                  opacity: locked ? 0.5 : 1,
+                },
+              ]}
+              onPress={() => {
+                if (locked) {
+                  router.push('/shop');
+                  return;
+                }
+                setTheme(thm);
+                Haptic.light();
+              }}
+            >
+              <Text style={[styles.themeText, { color: theme.text }]}>
+                {t(thm)}{locked ? ' 🔒' : ''}
+              </Text>
+            </Pressable>
+          );
+        })}
       </View>
 
       <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>
