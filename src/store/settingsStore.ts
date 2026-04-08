@@ -11,11 +11,13 @@ type SettingsState = {
   hapticEnabled: boolean;
   theme: Theme;
   language: Language;
+  hasSeenOnboarding: boolean;
   toggleSound: () => void;
   toggleBgm: () => void;
   toggleHaptic: () => void;
   setTheme: (theme: Theme) => void;
   setLanguage: (language: Language) => void;
+  completeOnboarding: () => void;
 };
 
 export const useSettingsStore = create<SettingsState>()(
@@ -26,12 +28,14 @@ export const useSettingsStore = create<SettingsState>()(
       hapticEnabled: true,
       theme: 'pastel' as Theme,
       language: 'ko' as Language,
+      hasSeenOnboarding: false,
 
       toggleSound: () => set((s) => ({ soundEnabled: !s.soundEnabled })),
       toggleBgm: () => set((s) => ({ bgmEnabled: !s.bgmEnabled })),
       toggleHaptic: () => set((s) => ({ hapticEnabled: !s.hapticEnabled })),
       setTheme: (theme) => set({ theme }),
       setLanguage: (language) => set({ language }),
+      completeOnboarding: () => set({ hasSeenOnboarding: true }),
     }),
     {
       name: 'sortzen-settings',

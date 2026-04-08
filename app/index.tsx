@@ -3,14 +3,22 @@ import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../src/components/ThemeProvider';
 import { useUserStore } from '../src/store/userStore';
+import { useSettingsStore } from '../src/store/settingsStore';
 import { SoundManager } from '../src/audio/SoundManager';
 import { Haptic } from '../src/utils/haptics';
 import { AdBanner } from '../src/ads/banner';
+import { Onboarding } from '../src/components/Onboarding';
 
 export default function MainMenu() {
   const router = useRouter();
   const theme = useTheme();
   const level = useUserStore((s) => s.level);
+  const hasSeenOnboarding = useSettingsStore((s) => s.hasSeenOnboarding);
+  const completeOnboarding = useSettingsStore((s) => s.completeOnboarding);
+
+  if (!hasSeenOnboarding) {
+    return <Onboarding onComplete={completeOnboarding} />;
+  }
 
   const handlePress = (path: string) => {
     SoundManager.play('button_tap');
