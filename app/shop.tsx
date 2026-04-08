@@ -8,10 +8,12 @@ import { SubscriptionManager } from '../src/iap/SubscriptionManager';
 import { SoundManager } from '../src/audio/SoundManager';
 import { Haptic } from '../src/utils/haptics';
 import { AdBanner } from '../src/ads/banner';
+import { useTranslation } from '../src/i18n';
 
 export default function ShopScreen() {
   const router = useRouter();
   const theme = useTheme();
+  const { t } = useTranslation();
   const isPremium = useUserStore((s) => s.isPremium);
   const premiumType = useUserStore((s) => s.premiumType);
 
@@ -25,7 +27,7 @@ export default function ShopScreen() {
     try {
       await SubscriptionManager.buyLifetime();
     } catch {
-      Alert.alert('Purchase Failed', 'Please try again later.');
+      Alert.alert(t('purchase_failed'), t('try_again'));
     }
   };
 
@@ -33,17 +35,17 @@ export default function ShopScreen() {
     try {
       await SubscriptionManager.buySubscription(sku);
     } catch {
-      Alert.alert('Subscription Failed', 'Please try again later.');
+      Alert.alert(t('purchase_failed'), t('try_again'));
     }
   };
 
   const handleRestore = async () => {
     const n = await SubscriptionManager.restorePurchases();
     Alert.alert(
-      n > 0 ? 'Restored' : 'Nothing to Restore',
+      n > 0 ? t('restored') : t('nothing_to_restore'),
       n > 0
-        ? `${n} purchase(s) restored.`
-        : 'No restorable purchases found.',
+        ? `${n} ${t('purchases_restored')}`
+        : t('no_restorable'),
     );
   };
 
@@ -55,45 +57,45 @@ export default function ShopScreen() {
         <Pressable onPress={handleBack}>
           <Text style={[styles.backText, { color: theme.accent }]}>←</Text>
         </Pressable>
-        <Text style={[styles.title, { color: theme.text }]}>Shop</Text>
+        <Text style={[styles.title, { color: theme.text }]}>{t('shop')}</Text>
         <View style={styles.spacer} />
       </View>
 
       {isPremium ? (
         <View style={styles.premiumBadge}>
           <Text style={[styles.premiumText, { color: theme.accent }]}>
-            Premium Active ({premiumType})
+            {t('premium_active')} ({premiumType})
           </Text>
         </View>
       ) : (
         <View style={styles.products}>
           <View style={[styles.card, { backgroundColor: theme.surface }]}>
             <Text style={[styles.cardTitle, { color: theme.accent }]}>
-              Lifetime
+              {t('lifetime')}
             </Text>
             <Text style={[styles.cardPrice, { color: theme.text }]}>
               ₩9,900
             </Text>
             <Text style={[styles.cardDesc, { color: theme.textSecondary }]}>
-              Remove ads forever + All themes
+              {t('remove_ads_forever')}
             </Text>
             <Pressable
               style={[styles.buyButton, { backgroundColor: theme.accent }]}
               onPress={handleBuyLifetime}
             >
-              <Text style={styles.buyButtonText}>Buy</Text>
+              <Text style={styles.buyButtonText}>{t('buy')}</Text>
             </Pressable>
           </View>
 
           <View style={styles.divider}>
             <Text style={[styles.dividerText, { color: theme.textSecondary }]}>
-              or subscribe
+              {t('or_subscribe')}
             </Text>
           </View>
 
           <View style={[styles.card, { backgroundColor: theme.surface }]}>
             <Text style={[styles.cardTitle, { color: theme.text }]}>
-              Yearly
+              {t('yearly')}
             </Text>
             <Text style={[styles.cardPrice, { color: theme.text }]}>
               ₩19,900/yr
@@ -105,14 +107,14 @@ export default function ShopScreen() {
               }
             >
               <Text style={[styles.subButtonText, { color: theme.accent }]}>
-                Subscribe
+                {t('subscribe')}
               </Text>
             </Pressable>
           </View>
 
           <View style={[styles.card, { backgroundColor: theme.surface }]}>
             <Text style={[styles.cardTitle, { color: theme.text }]}>
-              Monthly
+              {t('monthly')}
             </Text>
             <Text style={[styles.cardPrice, { color: theme.text }]}>
               ₩2,500/mo
@@ -124,7 +126,7 @@ export default function ShopScreen() {
               }
             >
               <Text style={[styles.subButtonText, { color: theme.accent }]}>
-                Subscribe
+                {t('subscribe')}
               </Text>
             </Pressable>
           </View>
@@ -133,14 +135,12 @@ export default function ShopScreen() {
             <Text
               style={[styles.restoreText, { color: theme.textSecondary }]}
             >
-              Restore Purchases
+              {t('restore')}
             </Text>
           </Pressable>
 
           <Text style={[styles.disclaimer, { color: theme.textSecondary }]}>
-            Subscriptions auto-renew unless cancelled 24 hours before the
-            renewal date. Manage subscriptions in Google Play Store →
-            Subscriptions.
+            {t('subscription_disclaimer')}
           </Text>
         </View>
       )}

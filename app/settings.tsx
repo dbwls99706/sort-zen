@@ -7,22 +7,30 @@ import { useTheme } from '../src/components/ThemeProvider';
 import { SoundManager } from '../src/audio/SoundManager';
 import { Haptic } from '../src/utils/haptics';
 import { AdBanner } from '../src/ads/banner';
+import { useTranslation } from '../src/i18n';
 
 type Theme = 'pastel' | 'neon' | 'dark';
 const THEMES: Theme[] = ['pastel', 'neon', 'dark'];
 
+type Language = 'ko' | 'en';
+const LANGUAGES: Language[] = ['ko', 'en'];
+const LANGUAGE_LABELS: Record<Language, string> = { ko: '한국어', en: 'English' };
+
 export default function SettingsScreen() {
   const router = useRouter();
   const theme = useTheme();
+  const { t } = useTranslation();
   const {
     soundEnabled,
     bgmEnabled,
     hapticEnabled,
     theme: currentTheme,
+    language,
     toggleSound,
     toggleBgm,
     toggleHaptic,
     setTheme,
+    setLanguage,
   } = useSettingsStore();
 
   const handleBack = () => {
@@ -39,25 +47,25 @@ export default function SettingsScreen() {
         <Pressable onPress={handleBack}>
           <Text style={[styles.backText, { color: theme.accent }]}>←</Text>
         </Pressable>
-        <Text style={[styles.title, { color: theme.text }]}>Settings</Text>
+        <Text style={[styles.title, { color: theme.text }]}>{t('settings')}</Text>
         <View style={styles.spacer} />
       </View>
 
       <View style={styles.section}>
         <SettingRow
-          label="Sound"
+          label={t('sound')}
           value={soundEnabled}
           onToggle={toggleSound}
           theme={theme}
         />
         <SettingRow
-          label="BGM"
+          label={t('bgm')}
           value={bgmEnabled}
           onToggle={toggleBgm}
           theme={theme}
         />
         <SettingRow
-          label="Haptic"
+          label={t('haptic')}
           value={hapticEnabled}
           onToggle={toggleHaptic}
           theme={theme}
@@ -65,27 +73,54 @@ export default function SettingsScreen() {
       </View>
 
       <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>
-        Theme
+        {t('theme')}
       </Text>
       <View style={styles.themeRow}>
-        {THEMES.map((t) => (
+        {THEMES.map((thm) => (
           <Pressable
-            key={t}
+            key={thm}
             style={[
               styles.themeButton,
               {
                 backgroundColor: theme.surface,
                 borderColor:
-                  currentTheme === t ? theme.accent : 'transparent',
+                  currentTheme === thm ? theme.accent : 'transparent',
               },
             ]}
             onPress={() => {
-              setTheme(t);
+              setTheme(thm);
               Haptic.light();
             }}
           >
             <Text style={[styles.themeText, { color: theme.text }]}>
-              {t.charAt(0).toUpperCase() + t.slice(1)}
+              {t(thm)}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
+      <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>
+        {t('language')}
+      </Text>
+      <View style={styles.themeRow}>
+        {LANGUAGES.map((lng) => (
+          <Pressable
+            key={lng}
+            style={[
+              styles.themeButton,
+              {
+                backgroundColor: theme.surface,
+                borderColor:
+                  language === lng ? theme.accent : 'transparent',
+              },
+            ]}
+            onPress={() => {
+              setLanguage(lng);
+              Haptic.light();
+            }}
+          >
+            <Text style={[styles.themeText, { color: theme.text }]}>
+              {LANGUAGE_LABELS[lng]}
             </Text>
           </Pressable>
         ))}

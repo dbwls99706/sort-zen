@@ -8,10 +8,12 @@ import { SoundManager } from '../src/audio/SoundManager';
 import { Haptic } from '../src/utils/haptics';
 import { AdBanner } from '../src/ads/banner';
 import { Onboarding } from '../src/components/Onboarding';
+import { useTranslation } from '../src/i18n';
 
 export default function MainMenu() {
   const router = useRouter();
   const theme = useTheme();
+  const { t } = useTranslation();
   const level = useUserStore((s) => s.level);
   const hasSeenOnboarding = useSettingsStore((s) => s.hasSeenOnboarding);
   const completeOnboarding = useSettingsStore((s) => s.completeOnboarding);
@@ -31,9 +33,9 @@ export default function MainMenu() {
       style={[styles.container, { backgroundColor: theme.background }]}
     >
       <View style={styles.titleArea}>
-        <Text style={[styles.title, { color: theme.text }]}>Sort ZEN</Text>
+        <Text style={[styles.title, { color: theme.text }]}>{t('app_name')}</Text>
         <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-          Relaxing Sort Puzzle
+          {t('subtitle')}
         </Text>
       </View>
 
@@ -42,16 +44,16 @@ export default function MainMenu() {
           style={[styles.mainButton, { backgroundColor: theme.accent }]}
           onPress={() => handlePress('/game/classic')}
         >
-          <Text style={styles.mainButtonText}>Classic</Text>
-          <Text style={styles.mainButtonSub}>Level {level}</Text>
+          <Text style={styles.mainButtonText}>{t('classic')}</Text>
+          <Text style={styles.mainButtonSub}>{t('level')} {level}</Text>
         </Pressable>
 
         <Pressable
           style={[styles.mainButton, { backgroundColor: '#88C999' }]}
           onPress={() => handlePress('/game/zen')}
         >
-          <Text style={styles.mainButtonText}>ZEN</Text>
-          <Text style={styles.mainButtonSub}>Endless Relax</Text>
+          <Text style={styles.mainButtonText}>{t('zen')}</Text>
+          <Text style={styles.mainButtonSub}>{t('endless_relax')}</Text>
         </Pressable>
       </View>
 
@@ -61,7 +63,7 @@ export default function MainMenu() {
           onPress={() => handlePress('/settings')}
         >
           <Text style={[styles.smallButtonText, { color: theme.text }]}>
-            Settings
+            {t('settings')}
           </Text>
         </Pressable>
 
@@ -70,7 +72,7 @@ export default function MainMenu() {
           onPress={() => handlePress('/shop')}
         >
           <Text style={[styles.smallButtonText, { color: theme.text }]}>
-            Shop
+            {t('shop')}
           </Text>
         </Pressable>
 
@@ -79,7 +81,7 @@ export default function MainMenu() {
           onPress={() => handlePress('/stats')}
         >
           <Text style={[styles.smallButtonText, { color: theme.text }]}>
-            Stats
+            {t('stats')}
           </Text>
         </Pressable>
       </View>

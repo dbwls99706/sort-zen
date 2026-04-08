@@ -7,10 +7,12 @@ import { useTheme } from '../src/components/ThemeProvider';
 import { SoundManager } from '../src/audio/SoundManager';
 import { Haptic } from '../src/utils/haptics';
 import { AdBanner } from '../src/ads/banner';
+import { useTranslation } from '../src/i18n';
 
 export default function StatsScreen() {
   const router = useRouter();
   const theme = useTheme();
+  const { t } = useTranslation();
   const { level, totalCleared, totalPlayTime, coins } = useUserStore();
 
   const formatTime = (seconds: number): string => {
@@ -34,28 +36,28 @@ export default function StatsScreen() {
         <Pressable onPress={handleBack}>
           <Text style={[styles.backText, { color: theme.accent }]}>←</Text>
         </Pressable>
-        <Text style={[styles.title, { color: theme.text }]}>Stats</Text>
+        <Text style={[styles.title, { color: theme.text }]}>{t('stats')}</Text>
         <View style={styles.spacer} />
       </View>
 
       <View style={styles.grid}>
         <StatCard
-          label="Level"
+          label={t('level')}
           value={String(level)}
           theme={theme}
         />
         <StatCard
-          label="Cleared"
+          label={t('cleared')}
           value={String(totalCleared)}
           theme={theme}
         />
         <StatCard
-          label="Play Time"
+          label={t('play_time')}
           value={formatTime(totalPlayTime)}
           theme={theme}
         />
         <StatCard
-          label="Coins"
+          label={t('coins')}
           value={String(coins)}
           theme={theme}
         />

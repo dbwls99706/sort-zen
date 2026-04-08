@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, Pressable, Modal, StyleSheet } from 'react-native';
 import { useTheme } from './ThemeProvider';
+import { useTranslation } from '../i18n';
 
 type ClearModalProps = {
   visible: boolean;
@@ -20,6 +21,7 @@ export function ClearModal({
   onMenu,
 }: ClearModalProps) {
   const theme = useTheme();
+  const { t } = useTranslation();
 
   return (
     <Modal visible={visible} transparent animationType="fade">
@@ -27,10 +29,10 @@ export function ClearModal({
         <View style={[styles.card, { backgroundColor: theme.surface }]}>
           <Text style={[styles.stars]}>★★★</Text>
           <Text style={[styles.title, { color: theme.text }]}>
-            {mode === 'classic' ? `Level ${level}` : 'ZEN'} Clear!
+            {mode === 'classic' ? `${t('level')} ${level}` : t('zen')} {t('clear')}
           </Text>
           <Text style={[styles.moves, { color: theme.textSecondary }]}>
-            {moveCount} moves
+            {moveCount} {t('moves')}
           </Text>
 
           <Pressable
@@ -38,7 +40,7 @@ export function ClearModal({
             onPress={onNextLevel}
           >
             <Text style={styles.buttonText}>
-              {mode === 'classic' ? 'Next Level' : 'New Puzzle'}
+              {mode === 'classic' ? t('next_level') : t('new_puzzle')}
             </Text>
           </Pressable>
 
@@ -47,7 +49,7 @@ export function ClearModal({
             onPress={onMenu}
           >
             <Text style={[styles.menuButtonText, { color: theme.textSecondary }]}>
-              Menu
+              {t('menu')}
             </Text>
           </Pressable>
         </View>

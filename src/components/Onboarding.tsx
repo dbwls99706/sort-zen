@@ -1,22 +1,14 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet, Dimensions } from 'react-native';
+import { useTranslation } from '../i18n';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-const SLIDES = [
-  {
-    title: 'Sort by Color',
-    description: 'Tap a tube to pick up liquid,\nthen tap another to pour it in.',
-  },
-  {
-    title: 'Match Colors',
-    description: 'Fill each tube with one color.\nEmpty tubes help you sort!',
-  },
-  {
-    title: 'Relax & Enjoy',
-    description: 'No time limit, no ads during play.\nJust pure sorting zen.',
-  },
-];
+const SLIDE_KEYS = [
+  { title: 'onboarding_1_title', desc: 'onboarding_1_desc' },
+  { title: 'onboarding_2_title', desc: 'onboarding_2_desc' },
+  { title: 'onboarding_3_title', desc: 'onboarding_3_desc' },
+] as const;
 
 type OnboardingProps = {
   onComplete: () => void;
@@ -24,27 +16,28 @@ type OnboardingProps = {
 
 export function Onboarding({ onComplete }: OnboardingProps) {
   const [page, setPage] = useState(0);
+  const { t } = useTranslation();
 
   const handleNext = () => {
-    if (page < SLIDES.length - 1) {
+    if (page < SLIDE_KEYS.length - 1) {
       setPage(page + 1);
     } else {
       onComplete();
     }
   };
 
-  const slide = SLIDES[page];
+  const slide = SLIDE_KEYS[page];
 
   return (
     <View style={styles.container}>
       <View style={styles.content}>
-        <Text style={styles.title}>{slide.title}</Text>
-        <Text style={styles.description}>{slide.description}</Text>
+        <Text style={styles.title}>{t(slide.title)}</Text>
+        <Text style={styles.description}>{t(slide.desc)}</Text>
       </View>
 
       <View style={styles.footer}>
         <View style={styles.dots}>
-          {SLIDES.map((_, i) => (
+          {SLIDE_KEYS.map((_, i) => (
             <View
               key={i}
               style={[styles.dot, i === page && styles.dotActive]}
@@ -54,13 +47,13 @@ export function Onboarding({ onComplete }: OnboardingProps) {
 
         <Pressable style={styles.button} onPress={handleNext}>
           <Text style={styles.buttonText}>
-            {page < SLIDES.length - 1 ? 'Next' : "Let's Go!"}
+            {page < SLIDE_KEYS.length - 1 ? t('next') : t('lets_go')}
           </Text>
         </Pressable>
 
-        {page < SLIDES.length - 1 && (
+        {page < SLIDE_KEYS.length - 1 && (
           <Pressable onPress={onComplete} style={styles.skipButton}>
-            <Text style={styles.skipText}>Skip</Text>
+            <Text style={styles.skipText}>{t('skip')}</Text>
           </Pressable>
         )}
       </View>

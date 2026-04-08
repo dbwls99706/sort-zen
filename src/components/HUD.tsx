@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useTheme } from './ThemeProvider';
+import { useTranslation } from '../i18n';
 
 type HUDProps = {
   level: number;
@@ -22,15 +23,16 @@ export function HUD({
   onPause,
 }: HUDProps) {
   const theme = useTheme();
+  const { t } = useTranslation();
 
   return (
     <View style={[styles.container, { backgroundColor: theme.surface }]}>
       <View style={styles.left}>
         <Text style={[styles.levelText, { color: theme.text }]}>
-          {mode === 'classic' ? `Lv.${level}` : 'ZEN'}
+          {mode === 'classic' ? `Lv.${level}` : t('zen')}
         </Text>
         <Text style={[styles.moveText, { color: theme.textSecondary }]}>
-          {moveCount} moves
+          {moveCount} {t('moves')}
         </Text>
       </View>
 
