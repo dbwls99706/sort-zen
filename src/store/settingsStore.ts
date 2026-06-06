@@ -9,16 +9,24 @@ type SettingsState = {
   soundEnabled: boolean;
   bgmEnabled: boolean;
   hapticEnabled: boolean;
+  masterVolume: number;
+  sfxVolume: number;
+  bgmVolume: number;
   theme: Theme;
   language: Language;
   hasSeenOnboarding: boolean;
   toggleSound: () => void;
   toggleBgm: () => void;
   toggleHaptic: () => void;
+  setMasterVolume: (v: number) => void;
+  setSfxVolume: (v: number) => void;
+  setBgmVolume: (v: number) => void;
   setTheme: (theme: Theme) => void;
   setLanguage: (language: Language) => void;
   completeOnboarding: () => void;
 };
+
+const clampVolume = (v: number): number => Math.max(0, Math.min(1, v));
 
 export const useSettingsStore = create<SettingsState>()(
   persist(
@@ -26,6 +34,9 @@ export const useSettingsStore = create<SettingsState>()(
       soundEnabled: true,
       bgmEnabled: true,
       hapticEnabled: true,
+      masterVolume: 1,
+      sfxVolume: 0.8,
+      bgmVolume: 0.5,
       theme: 'pastel' as Theme,
       language: 'ko' as Language,
       hasSeenOnboarding: false,
@@ -33,6 +44,9 @@ export const useSettingsStore = create<SettingsState>()(
       toggleSound: () => set((s) => ({ soundEnabled: !s.soundEnabled })),
       toggleBgm: () => set((s) => ({ bgmEnabled: !s.bgmEnabled })),
       toggleHaptic: () => set((s) => ({ hapticEnabled: !s.hapticEnabled })),
+      setMasterVolume: (v) => set({ masterVolume: clampVolume(v) }),
+      setSfxVolume: (v) => set({ sfxVolume: clampVolume(v) }),
+      setBgmVolume: (v) => set({ bgmVolume: clampVolume(v) }),
       setTheme: (theme) => set({ theme }),
       setLanguage: (language) => set({ language }),
       completeOnboarding: () => set({ hasSeenOnboarding: true }),

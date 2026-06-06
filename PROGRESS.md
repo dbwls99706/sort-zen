@@ -55,3 +55,4 @@
 - [2026-06-06] T115 완료: Background.tsx(그라데이션+드리프트 보케 6개), 메뉴/게임 연결, prand를 utils/prand.ts로 공용화. P1(팔레트·화면 일관성) 완료
 - [2026-06-06] T116 완료: computeTubeScale(선형탐색 순수함수)로 반응형 튜브 스케일, 붓기 좌표·스트림 스케일 반영. tube/dimensions.ts 분리로 jest에서 Skia 미로드 이슈 해결
 - [2026-06-06] T117 완료: icons.tsx(Skia 벡터 Undo/Reset/Pause)로 HUD 텍스트 글리프 대체, 미사용 스타일 제거
+- [2026-06-06] T118 완료: master/SFX/BGM 볼륨 세그먼트 컨트롤, settingsStore 볼륨 상태(+클램프/테스트), SoundManager 볼륨 적용+refreshBgmVolume, i18n 4키. ZEN 앰비언스는 bgm_zen 루프로 대체(numpy 부재로 신규 합성 보류)

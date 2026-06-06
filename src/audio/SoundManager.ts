@@ -21,8 +21,15 @@ type SoundKey =
   | 'coin'
   | 'button_tap';
 
-const SOUND_VOLUME = 0.7;
-const BGM_VOLUME = 0.3;
+function effectVolume(): number {
+  const { masterVolume, sfxVolume } = useSettingsStore.getState();
+  return masterVolume * sfxVolume;
+}
+
+function bgmVolume(): number {
+  const { masterVolume, bgmVolume: bgm } = useSettingsStore.getState();
+  return masterVolume * bgm;
+}
 
 /* eslint-disable @typescript-eslint/no-require-imports */
 const SOUND_ASSETS: Record<SoundKey, number> = {
@@ -68,7 +75,7 @@ class SoundManagerClass {
 
     for (const [key, asset] of Object.entries(SOUND_ASSETS)) {
       const { sound } = await Audio.Sound.createAsync(asset, {
-        volume: SOUND_VOLUME,
+        volume: effectVolume(),
       });
       this.sounds.set(key as SoundKey, sound);
     }
@@ -81,6 +88,7 @@ class SoundManagerClass {
     const sound = this.sounds.get(key);
     if (!sound) return;
     try {
+      await sound.setVolumeAsync(effectVolume());
       await sound.replayAsync();
     } catch {
       /* 사운드 재생 실패 무시 */
@@ -103,10 +111,20 @@ class SoundManagerClass {
     const asset = BGM_ASSETS[track];
     const { sound } = await Audio.Sound.createAsync(asset, {
       isLooping: true,
-      volume: BGM_VOLUME,
+      volume: bgmVolume(),
     });
     this.bgm = sound;
     await sound.playAsync();
+  }
+
+  /** 설정에서 BGM 볼륨을 바꿨을 때 재생 중인 트랙에 즉시 반영 */
+  async refreshBgmVolume(): Promise<void> {
+    if (!this.bgm) return;
+    try {
+      await this.bgm.setVolumeAsync(bgmVolume());
+    } catch {
+      /* 볼륨 적용 실패 무시 */
+    }
   }
 
   async stopBGM(): Promise<void> {
