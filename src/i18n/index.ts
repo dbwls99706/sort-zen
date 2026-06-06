@@ -2,21 +2,32 @@ import { useSettingsStore } from '../store/settingsStore';
 import ko from './ko.json';
 import en from './en.json';
 
-type TranslationKey = keyof typeof ko;
+export type TranslationKey = keyof typeof ko;
+type TParams = Record<string, string | number>;
 
 const translations: Record<string, Record<string, string>> = { ko, en };
 
-export function t(key: TranslationKey): string {
-  const lang = useSettingsStore.getState().language;
-  return translations[lang]?.[key] ?? translations['en'][key] ?? key;
+function interpolate(template: string, params?: TParams): string {
+  if (!params) return template;
+  return template.replace(/\{(\w+)\}/g, (m, k) =>
+    k in params ? String(params[k]) : m,
+  );
+}
+
+function resolve(lang: string, key: TranslationKey, params?: TParams): string {
+  const raw = translations[lang]?.[key] ?? translations['en'][key] ?? key;
+  return interpolate(raw, params);
+}
+
+export function t(key: TranslationKey, params?: TParams): string {
+  return resolve(useSettingsStore.getState().language, key, params);
 }
 
 export function useTranslation() {
   const language = useSettingsStore((s) => s.language);
   return {
-    t: (key: TranslationKey): string => {
-      return translations[language]?.[key] ?? translations['en'][key] ?? key;
-    },
+    t: (key: TranslationKey, params?: TParams): string =>
+      resolve(language, key, params),
     language,
   };
 }
