@@ -47,8 +47,8 @@ const SOUND_ASSETS: Record<SoundKey, number> = {
 };
 
 const BGM_ASSETS = {
-  zen: require('./assets/bgm_zen.wav'),
-  classic: require('./assets/bgm_classic.wav'),
+  zen: require('./assets/bgm_zen.mp3'),
+  classic: require('./assets/bgm_classic.mp3'),
 };
 /* eslint-enable @typescript-eslint/no-require-imports */
 
