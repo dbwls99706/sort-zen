@@ -88,11 +88,22 @@ class SoundManagerClass {
     const sound = this.sounds.get(key);
     if (!sound) return;
     try {
-      await sound.setVolumeAsync(effectVolume());
       await sound.replayAsync();
     } catch {
       /* 사운드 재생 실패 무시 */
     }
+  }
+
+  /** 설정에서 효과음/전체 볼륨을 바꿨을 때 미리 로드된 효과음에 일괄 반영 */
+  async refreshSfxVolume(): Promise<void> {
+    const vol = effectVolume();
+    await Promise.all(
+      [...this.sounds.values()].map((s) =>
+        s.setVolumeAsync(vol).catch(() => {
+          /* 볼륨 적용 실패 무시 */
+        }),
+      ),
+    );
   }
 
   async playPour(colorId: number): Promise<void> {

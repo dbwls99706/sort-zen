@@ -95,6 +95,9 @@ export default function SettingsScreen() {
             setMasterVolume(v);
             Haptic.light();
             SoundManager.refreshBgmVolume();
+            SoundManager.refreshSfxVolume().then(() =>
+              SoundManager.play('button_tap'),
+            );
           }}
         />
         <VolumeControl
@@ -103,7 +106,9 @@ export default function SettingsScreen() {
           onChange={(v) => {
             setSfxVolume(v);
             Haptic.light();
-            SoundManager.play('button_tap');
+            SoundManager.refreshSfxVolume().then(() =>
+              SoundManager.play('button_tap'),
+            );
           }}
         />
         <VolumeControl
