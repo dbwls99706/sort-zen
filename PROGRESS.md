@@ -53,3 +53,4 @@
 - [2026-06-06] T113 완료: ClearModal 카드 바운스인+별 스태거 버스트, Confetti.tsx(Skia 22파티클, prand 순수난수). P0(코어 루프 만족감) 완료
 - [2026-06-06] T114 완료: 파스텔 12색을 색상환 균등 분산으로 재튜닝(핑크/피치 4색 중복 해소), tubeOutline 대비 상향(#CCC→#BCC2CC)
 - [2026-06-06] T115 완료: Background.tsx(그라데이션+드리프트 보케 6개), 메뉴/게임 연결, prand를 utils/prand.ts로 공용화. P1(팔레트·화면 일관성) 완료
+- [2026-06-06] T116 완료: computeTubeScale(선형탐색 순수함수)로 반응형 튜브 스케일, 붓기 좌표·스트림 스케일 반영. tube/dimensions.ts 분리로 jest에서 Skia 미로드 이슈 해결

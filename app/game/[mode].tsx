@@ -1,5 +1,10 @@
-import React, { useEffect, useCallback, useState, useRef } from 'react';
-import { View, StyleSheet, LayoutChangeEvent } from 'react-native';
+import React, { useEffect, useCallback, useState, useRef, useMemo } from 'react';
+import {
+  View,
+  StyleSheet,
+  LayoutChangeEvent,
+  useWindowDimensions,
+} from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useGameStore } from '../../src/store/gameStore';
@@ -10,6 +15,8 @@ import {
   TUBE_CONTAINER_TOP_GAP,
   TUBE_SELECTED_LIFT,
 } from '../../src/components/Tube';
+import { TUBE_WIDTH, TUBE_HEIGHT } from '../../src/components/tube/dimensions';
+import { computeTubeScale } from '../../src/utils/layout';
 import { PourStream } from '../../src/components/PourAnimation';
 import { Background } from '../../src/components/Background';
 import { HUD } from '../../src/components/HUD';
@@ -38,6 +45,7 @@ export default function GameScreen() {
   const mode: GameMode = rawMode === 'zen' ? 'zen' : 'classic';
   const router = useRouter();
   const theme = useTheme();
+  const { width: winW, height: winH } = useWindowDimensions();
 
   const tubeLayouts = useRef<Record<number, TubeLayout>>({});
   const prevCompleted = useRef<Set<number>>(new Set());
@@ -58,6 +66,12 @@ export default function GameScreen() {
   const incrementLevel = useUserStore((s) => s.incrementLevel);
   const incrementCleared = useUserStore((s) => s.incrementCleared);
   const addCoins = useUserStore((s) => s.addCoins);
+
+  // 튜브 수/화면에 맞춘 반응형 스케일 (오버플로 방지)
+  const scale = useMemo(
+    () => computeTubeScale(tubes.length, winW - 32, winH * 0.6),
+    [tubes.length, winW, winH],
+  );
 
   useEffect(() => {
     const lvl = mode === 'classic' ? userLevel : undefined;
@@ -152,9 +166,10 @@ export default function GameScreen() {
         Haptic.medium();
         setPourAnim({
           fromX: from.x + from.width / 2,
-          fromY: from.y + TUBE_CONTAINER_TOP_GAP - TUBE_SELECTED_LIFT,
+          fromY:
+            from.y + (TUBE_CONTAINER_TOP_GAP - TUBE_SELECTED_LIFT) * scale,
           toX: to.x + to.width / 2,
-          toY: to.y + TUBE_CONTAINER_TOP_GAP,
+          toY: to.y + TUBE_CONTAINER_TOP_GAP * scale,
           color: theme.colors[colorId % theme.colors.length],
           toId: id,
           colorId,
@@ -226,13 +241,24 @@ export default function GameScreen() {
 
       <View style={styles.tubeGrid}>
         {tubes.map((tube) => (
-          <View key={tube.id} onLayout={handleTubeLayout(tube.id)}>
-            <TubeComponent
-              tube={tube}
-              selected={selectedTube === tube.id}
-              completed={isTubeComplete(tube)}
-              onPress={() => handleTubePress(tube.id)}
-            />
+          <View
+            key={tube.id}
+            onLayout={handleTubeLayout(tube.id)}
+            style={{
+              width: TUBE_WIDTH * scale,
+              height: (TUBE_HEIGHT + TUBE_CONTAINER_TOP_GAP) * scale,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <View style={{ transform: [{ scale }] }}>
+              <TubeComponent
+                tube={tube}
+                selected={selectedTube === tube.id}
+                completed={isTubeComplete(tube)}
+                onPress={() => handleTubePress(tube.id)}
+              />
+            </View>
           </View>
         ))}
 
@@ -243,6 +269,7 @@ export default function GameScreen() {
             toX={pourAnim.toX}
             toY={pourAnim.toY}
             color={pourAnim.color}
+            scale={scale}
             onComplete={handlePourLand}
           />
         )}

@@ -22,6 +22,7 @@ type PourStreamProps = {
   toX: number;
   toY: number;
   color: string;
+  scale?: number;
   onComplete: () => void;
 };
 
@@ -36,9 +37,13 @@ export function PourStream({
   toX,
   toY,
   color,
+  scale = 1,
   onComplete,
 }: PourStreamProps) {
   const progress = useSharedValue(0);
+  const arcLift = ARC_LIFT * scale;
+  const streamWidth = STREAM_WIDTH * scale;
+  const splashMax = SPLASH_RADIUS * scale;
 
   React.useEffect(() => {
     progress.value = withTiming(
@@ -51,12 +56,12 @@ export function PourStream({
   }, [progress, onComplete]);
 
   const basePath = useMemo(() => {
-    const peakY = Math.min(fromY, toY) - ARC_LIFT;
+    const peakY = Math.min(fromY, toY) - arcLift;
     const path = Skia.Path.Make();
     path.moveTo(fromX, fromY);
     path.cubicTo(fromX, peakY, toX, peakY, toX, toY);
     return path;
-  }, [fromX, fromY, toX, toY]);
+  }, [fromX, fromY, toX, toY, arcLift]);
 
   const streamPath = useDerivedValue(() => {
     const t = progress.value;
@@ -71,7 +76,7 @@ export function PourStream({
     const t = progress.value;
     if (t < FILL_PHASE) return 0;
     const k = (t - FILL_PHASE) / (1 - FILL_PHASE);
-    return Math.sin(k * Math.PI) * SPLASH_RADIUS;
+    return Math.sin(k * Math.PI) * splashMax;
   });
 
   const splashOpacity = useDerivedValue(() => {
@@ -86,7 +91,7 @@ export function PourStream({
       <Path
         path={streamPath}
         style="stroke"
-        strokeWidth={STREAM_WIDTH}
+        strokeWidth={streamWidth}
         strokeCap="round"
         strokeJoin="round"
         color={color}
