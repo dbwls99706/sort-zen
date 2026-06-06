@@ -83,7 +83,7 @@
 - [x] T110 진짜 액체 붓기 연출 — Skia 스트림(trim 호 reveal) + 착지 스플래시, 게임 화면 연결, 착지 시 store 커밋 + 사운드 동기화
 - [x] T111 Tube 고급 렌더링 — 색별 수직 그라데이션 + 유리 광택 스트라이프/림라이트 + 메니스커스 + 떠오르는 기포. geometry/color 모듈 분리
 - [x] T112 per-tube 완성 보상 — isTubeComplete 순수함수(+테스트), 신규 완성 감지 시 complete_tube 사운드+햅틱, Tube 글로우(BlurMask)+팝 스케일
-- [ ] T113 ClearModal juice — 별 스태거 버스트 + Skia 컨페티 + 카드 바운스 인
+- [x] T113 ClearModal juice — 카드 스프링 바운스 인 + 별 3개 스태거 스케일 + Skia 컨페티(결정적 의사난수 22개)
 ### P1 — 팔레트 & 화면 일관성
 - [ ] T114 파스텔 12색 hue 분리 재튜닝 + 네온/다크 구분성 점검
 - [ ] T115 메뉴/게임 배경 그라데이션 + 은은한 보케(브랜드 톤)
