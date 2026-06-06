@@ -69,3 +69,9 @@
 - [x] T095 온보딩 첫 실행 게이트 → settingsStore에 `hasSeenOnboarding` + index.tsx 조건부 렌더 — 완료
 - [x] T096 i18n 적용 → 모든 화면/컴포넌트 하드코딩 문자열을 `t()` 호출로 교체 + 언어 선택 UI — 완료
 - [x] T097 테마 잠금 → neon/dark 구독자 전용 (SPEC §6.4) — 완료
+
+## Phase 12: 검토 후속 (Review follow-up)
+- [x] T098 광고 정책 일원화 → AdManager가 검증된 `shouldShowInterstitial` 호출 + 상수 중복 제거 — 완료
+- [x] T099 Tube 액체 파동 애니메이션 커밋 (working tree 미커밋분 정리) — 완료
+- [x] T100 스토어/앱 아이콘·피처그래픽 진짜 PNG 재생성 (JPEG-in-png 수정, 피처 1024x500) — 완료
+- [x] T101 출시 매뉴얼/스토어 메타데이터 문서 커밋 — 완료
