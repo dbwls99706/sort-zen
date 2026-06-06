@@ -49,7 +49,15 @@ export default function GameScreen() {
 
   const tubeLayouts = useRef<Record<number, TubeLayout>>({});
   const prevCompleted = useRef<Set<number>>(new Set());
+  const mounted = useRef(true);
   const [pourAnim, setPourAnim] = useState<PourAnim | null>(null);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   const tubes = useGameStore((s) => s.tubes);
   const moves = useGameStore((s) => s.moves);
@@ -126,9 +134,9 @@ export default function GameScreen() {
     tubeLayouts.current[id] = e.nativeEvent.layout;
   };
 
-  // 붓기 스트림 착지 → store 커밋 + 사운드 동기화
+  // 붓기 스트림 착지 → store 커밋 + 사운드 동기화 (언마운트 후 콜백이면 무시)
   const handlePourLand = useCallback(() => {
-    if (!pourAnim) return;
+    if (!pourAnim || !mounted.current) return;
     selectTube(pourAnim.toId); // selectedTube(=소스)가 살아있으므로 여기서 실제 붓기 실행
     SoundManager.playPour(pourAnim.colorId);
     setPourAnim(null);
@@ -198,6 +206,7 @@ export default function GameScreen() {
     if (pourAnim) return;
     SoundManager.play('button_tap');
     Haptic.light();
+    prevCompleted.current = new Set();
     reset();
   };
 
@@ -215,6 +224,7 @@ export default function GameScreen() {
     } else {
       startNewGame('zen');
     }
+    prevCompleted.current = new Set();
     setPourAnim(null);
   }, [mode, userLevel, startNewGame]);
 
