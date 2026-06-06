@@ -96,3 +96,12 @@
 ## Phase 14: 바이럴 장치 (SPEC 밖, 추후)
 - [ ] T120 만족스러운 클리어 공유 — 결과 카드/짧은 클립 내보내기
 - [ ] T121 데일리 스트릭 가시적 훅 강화
+
+## Phase 15: 코드 리뷰 후속 (juice 오버홀 검토에서 발견)
+- [x] T130 붓기 스트림 좌표 어긋남(패딩 vs onLayout/오버레이 원점) 수정
+- [x] T131 효과음 볼륨 캐싱(재생마다 setVolumeAsync 제거)
+- [x] T132 붓기 중 화면 이탈 시 stale 커밋 방지(mounted 가드) + prevCompleted 새 보드 초기화
+- [x] T133 color 유틸 비정상 hex 입력 방어 + 테스트
+- [ ] T134 (성능) Background BlurMask 6개/Tube 웨이브·기포 14개 상시 60fps 렌더 최적화 — 저사양 프로파일링 후 단일 클럭/정적 레이어 검토
+- [ ] T135 (리팩터) PourStream/OnboardingIllustration의 아크+trim 스트림 로직 공용 헬퍼로 추출
+- [ ] T136 (UX) VolumeControl에서 0(뮤트) 도달 가능하게 — 현재 최소 0.2, 토글로만 음소거
