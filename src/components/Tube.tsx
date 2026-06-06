@@ -18,7 +18,11 @@ const TUBE_WIDTH = 52;
 const TUBE_HEIGHT = 160;
 const LAYER_HEIGHT = TUBE_HEIGHT / DEFAULT_CAPACITY;
 const BORDER_RADIUS = 12;
-const SELECTED_OFFSET = -20;
+
+// 선택 시 위로 떠오르는 높이, 컨테이너 상단 여백(떠오를 공간) — 붓기 연출 좌표 계산에 재사용
+export const TUBE_SELECTED_LIFT = 20;
+export const TUBE_CONTAINER_TOP_GAP = TUBE_SELECTED_LIFT + 4;
+const SELECTED_OFFSET = -TUBE_SELECTED_LIFT;
 
 type TubeProps = {
   tube: TubeType;
@@ -179,7 +183,7 @@ export function TubeComponent({ tube, selected, onPress }: TubeProps) {
 const styles = StyleSheet.create({
   container: {
     width: TUBE_WIDTH,
-    height: TUBE_HEIGHT + 24,
+    height: TUBE_HEIGHT + TUBE_CONTAINER_TOP_GAP,
     alignItems: 'center',
     justifyContent: 'flex-end',
   },
