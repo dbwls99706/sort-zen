@@ -1,8 +1,13 @@
-import React from 'react';
-import { Canvas, RoundedRect, Path, Skia } from '@shopify/react-native-skia';
+import React, { useMemo } from 'react';
+import { Canvas, RoundedRect, Path, Skia, Group } from '@shopify/react-native-skia';
 import Animated, {
   useAnimatedStyle,
   withSpring,
+  useSharedValue,
+  useDerivedValue,
+  withRepeat,
+  withTiming,
+  Easing,
 } from 'react-native-reanimated';
 import { Pressable, StyleSheet } from 'react-native';
 import { useTheme } from './ThemeProvider';
@@ -35,41 +40,129 @@ export function TubeComponent({ tube, selected, onPress }: TubeProps) {
     ],
   }));
 
-  const outlinePath = Skia.Path.Make();
-  outlinePath.moveTo(4, 8);
-  outlinePath.lineTo(4, TUBE_HEIGHT - BORDER_RADIUS);
-  outlinePath.quadTo(4, TUBE_HEIGHT - 4, BORDER_RADIUS, TUBE_HEIGHT - 4);
-  outlinePath.lineTo(TUBE_WIDTH - BORDER_RADIUS, TUBE_HEIGHT - 4);
-  outlinePath.quadTo(
-    TUBE_WIDTH - 4,
-    TUBE_HEIGHT - 4,
-    TUBE_WIDTH - 4,
-    TUBE_HEIGHT - BORDER_RADIUS,
-  );
-  outlinePath.lineTo(TUBE_WIDTH - 4, 8);
+  // Create loop animation for fluid waves
+  const wavePhase = useSharedValue(0);
+  React.useEffect(() => {
+    wavePhase.value = withRepeat(
+      withTiming(2 * Math.PI, {
+        duration: 2500,
+        easing: Easing.linear,
+      }),
+      -1,
+      false,
+    );
+  }, [wavePhase]);
+
+  // Closed interior clip path
+  const clipPath = useMemo(() => {
+    const path = Skia.Path.Make();
+    const left = 6;
+    const right = TUBE_WIDTH - 6;
+    const bottom = TUBE_HEIGHT - 6;
+    const top = 6;
+    const r = BORDER_RADIUS - 3;
+
+    path.moveTo(left, top);
+    path.lineTo(left, bottom - r);
+    path.quadTo(left, bottom, left + r, bottom);
+    path.lineTo(right - r, bottom);
+    path.quadTo(right, bottom, right, bottom - r);
+    path.lineTo(right, top);
+    path.close();
+    return path;
+  }, []);
+
+  const outlinePath = useMemo(() => {
+    const path = Skia.Path.Make();
+    path.moveTo(4, 8);
+    path.lineTo(4, TUBE_HEIGHT - BORDER_RADIUS);
+    path.quadTo(4, TUBE_HEIGHT - 4, BORDER_RADIUS, TUBE_HEIGHT - 4);
+    path.lineTo(TUBE_WIDTH - BORDER_RADIUS, TUBE_HEIGHT - 4);
+    path.quadTo(
+      TUBE_WIDTH - 4,
+      TUBE_HEIGHT - 4,
+      TUBE_WIDTH - 4,
+      TUBE_HEIGHT - BORDER_RADIUS,
+    );
+    path.lineTo(TUBE_WIDTH - 4, 8);
+    return path;
+  }, []);
+
+  const layersCount = tube.layers.length;
+  const topIndex = layersCount - 1;
+  const underLayers = useMemo(() => tube.layers.slice(0, topIndex), [tube.layers, topIndex]);
+
+  // Derived wavy path for the topmost layer
+  const wavyTopPath = useDerivedValue(() => {
+    const path = Skia.Path.Make();
+    if (layersCount === 0) return path;
+
+    const y = TUBE_HEIGHT - layersCount * LAYER_HEIGHT;
+    const left = 5;
+    const right = TUBE_WIDTH - 5;
+    const width = right - left;
+    const steps = 12;
+    const stepWidth = width / steps;
+    const phase = wavePhase.value;
+    const amplitude = 2.5; // subtle wave
+
+    path.moveTo(left, TUBE_HEIGHT);
+    path.lineTo(left, y + Math.sin(phase) * amplitude);
+
+    for (let i = 1; i <= steps; i++) {
+      const x = left + i * stepWidth;
+      const t = i / steps;
+      const waveY = y + Math.sin(phase + t * Math.PI * 2) * amplitude;
+      path.lineTo(x, waveY);
+    }
+
+    path.lineTo(right, TUBE_HEIGHT);
+    path.close();
+    return path;
+  });
+
+  const topColorId = layersCount > 0 ? tube.layers[topIndex] : 0;
+  const topColor = theme.colors[topColorId % theme.colors.length];
 
   return (
     <Pressable onPress={onPress}>
       <Animated.View style={[styles.container, animatedStyle]}>
         <Canvas style={styles.canvas}>
-          {tube.layers.map((colorId, index) => {
-            const y = TUBE_HEIGHT - (index + 1) * LAYER_HEIGHT;
-            const isBottom = index === 0;
-            const color = theme.colors[colorId % theme.colors.length];
-            const radius = isBottom ? BORDER_RADIUS - 4 : 0;
+          <Group clip={clipPath}>
+            {/* Base Background */}
+            <RoundedRect
+              x={6}
+              y={6}
+              width={TUBE_WIDTH - 12}
+              height={TUBE_HEIGHT - 12}
+              r={0}
+              color={theme.tubeBackground || 'transparent'}
+            />
 
-            return (
-              <RoundedRect
-                key={`${tube.id}-${index}`}
-                x={6}
-                y={y}
-                width={TUBE_WIDTH - 12}
-                height={LAYER_HEIGHT - 1}
-                r={radius}
-                color={color}
-              />
-            );
-          })}
+            {/* Flat Under Layers */}
+            {underLayers.map((colorId, index) => {
+              const y = TUBE_HEIGHT - (index + 1) * LAYER_HEIGHT;
+              const color = theme.colors[colorId % theme.colors.length];
+              return (
+                <RoundedRect
+                  key={`${tube.id}-${index}`}
+                  x={5}
+                  y={y - 1} // tiny overlap to prevent gap
+                  width={TUBE_WIDTH - 10}
+                  height={LAYER_HEIGHT + 2}
+                  r={0}
+                  color={color}
+                />
+              );
+            })}
+
+            {/* Wavy Topmost Layer */}
+            {layersCount > 0 && (
+              <Path path={wavyTopPath} color={topColor} />
+            )}
+          </Group>
+
+          {/* Tube Outer Glass Outline */}
           <Path
             path={outlinePath}
             style="stroke"
