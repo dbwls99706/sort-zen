@@ -49,3 +49,4 @@
 - [2026-06-06] T103 완료: 도전과제(16개)/데일리 과제 코어+스토어+UI+i18n. 테스트 101개 통과. 연결코드(index/game)는 사용자 WIP와 동일파일이라 작업트리 잔여
 - [2026-06-06] T110 완료: PourStream(Skia trim 호 연출)로 붓기 시각화, 착지 시점에 store 커밋+pour 사운드 동기화. PourAnimation.tsx 죽은 코드(날아가는 원) 대체
 - [2026-06-06] T111 완료: Tube 액체에 세로 그라데이션+유리광택+림라이트+기포 추가, geometry.ts/color.ts 분리(파일 책임 정리)
+- [2026-06-06] T112 완료: isTubeComplete 추출+테스트3개, 튜브 신규 완성 시 complete_tube(미사용 자산 활성화)+햅틱+글로우/팝. 클리어 순간엔 level_clear에 양보

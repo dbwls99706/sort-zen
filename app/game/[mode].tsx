@@ -16,7 +16,7 @@ import { ClearModal } from '../../src/components/ClearModal';
 import { SoundManager } from '../../src/audio/SoundManager';
 import { Haptic } from '../../src/utils/haptics';
 import { AdManager } from '../../src/ads/AdManager';
-import { pour } from '../../src/core/rules';
+import { pour, isTubeComplete } from '../../src/core/rules';
 
 type GameMode = 'classic' | 'zen';
 
@@ -39,6 +39,7 @@ export default function GameScreen() {
   const theme = useTheme();
 
   const tubeLayouts = useRef<Record<number, TubeLayout>>({});
+  const prevCompleted = useRef<Set<number>>(new Set());
   const [pourAnim, setPourAnim] = useState<PourAnim | null>(null);
 
   const tubes = useGameStore((s) => s.tubes);
@@ -60,6 +61,7 @@ export default function GameScreen() {
   useEffect(() => {
     const lvl = mode === 'classic' ? userLevel : undefined;
     startNewGame(mode, lvl);
+    prevCompleted.current = new Set();
 
     if (mode === 'zen') {
       SoundManager.playBGM('zen');
@@ -87,6 +89,23 @@ export default function GameScreen() {
       }
     }
   }, [cleared, mode, incrementCleared, addCoins, incrementLevel]);
+
+  // 튜브 단색 완성 감지 → 미세 보상 사운드 + 햅틱 (클리어 순간은 level_clear에 양보)
+  useEffect(() => {
+    const nowComplete = new Set<number>();
+    let hasNew = false;
+    for (const t of tubes) {
+      if (isTubeComplete(t)) {
+        nowComplete.add(t.id);
+        if (!prevCompleted.current.has(t.id)) hasNew = true;
+      }
+    }
+    if (hasNew && !cleared) {
+      SoundManager.play('complete_tube');
+      Haptic.medium();
+    }
+    prevCompleted.current = nowComplete;
+  }, [tubes, cleared]);
 
   const handleTubeLayout = (id: number) => (e: LayoutChangeEvent) => {
     tubeLayouts.current[id] = e.nativeEvent.layout;
@@ -209,6 +228,7 @@ export default function GameScreen() {
             <TubeComponent
               tube={tube}
               selected={selectedTube === tube.id}
+              completed={isTubeComplete(tube)}
               onPress={() => handleTubePress(tube.id)}
             />
           </View>

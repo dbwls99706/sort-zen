@@ -6,16 +6,18 @@ import {
   Circle,
   Group,
   LinearGradient,
+  BlurMask,
   vec,
   Skia,
 } from '@shopify/react-native-skia';
 import Animated, {
   useAnimatedStyle,
   withSpring,
+  withSequence,
+  withTiming,
   useSharedValue,
   useDerivedValue,
   withRepeat,
-  withTiming,
   Easing,
 } from 'react-native-reanimated';
 import { Pressable, StyleSheet } from 'react-native';
@@ -41,11 +43,30 @@ const SELECTED_OFFSET = -TUBE_SELECTED_LIFT;
 type TubeProps = {
   tube: TubeType;
   selected: boolean;
+  completed: boolean;
   onPress: () => void;
 };
 
-export function TubeComponent({ tube, selected, onPress }: TubeProps) {
+export function TubeComponent({
+  tube,
+  selected,
+  completed,
+  onPress,
+}: TubeProps) {
   const theme = useTheme();
+
+  // 완성 순간 통통 튀는 팝
+  const pop = useSharedValue(1);
+  const wasCompleted = React.useRef(false);
+  React.useEffect(() => {
+    if (completed && !wasCompleted.current) {
+      pop.value = withSequence(
+        withTiming(1.08, { duration: 140, easing: Easing.out(Easing.quad) }),
+        withSpring(1, { damping: 8, stiffness: 220 }),
+      );
+    }
+    wasCompleted.current = completed;
+  }, [completed, pop]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [
@@ -55,6 +76,7 @@ export function TubeComponent({ tube, selected, onPress }: TubeProps) {
           stiffness: 200,
         }),
       },
+      { scale: pop.value },
     ],
   }));
 
@@ -183,6 +205,19 @@ export function TubeComponent({ tube, selected, onPress }: TubeProps) {
               color="rgba(255,255,255,0.18)"
             />
           </Group>
+
+          {/* 완성 글로우 (단색으로 가득 찬 튜브) */}
+          {completed && (
+            <Path
+              path={outlinePath}
+              style="stroke"
+              strokeWidth={3}
+              color={topColor}
+              strokeCap="round"
+            >
+              <BlurMask blur={5} style="normal" />
+            </Path>
+          )}
 
           {/* 유리관 외곽선 + 림라이트 */}
           <Path

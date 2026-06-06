@@ -44,13 +44,15 @@ export function pour(
   };
 }
 
-export function isCleared(tubes: Tube[]): boolean {
-  return tubes.every(
-    (t) =>
-      t.layers.length === 0 ||
-      (t.layers.length === t.capacity &&
-        t.layers.every((c) => c === t.layers[0])),
+export function isTubeComplete(tube: Tube): boolean {
+  return (
+    tube.layers.length === tube.capacity &&
+    tube.layers.every((c) => c === tube.layers[0])
   );
+}
+
+export function isCleared(tubes: Tube[]): boolean {
+  return tubes.every((t) => t.layers.length === 0 || isTubeComplete(t));
 }
 
 export function applyUndo(tubes: Tube[], lastMove: Move): Tube[] {
