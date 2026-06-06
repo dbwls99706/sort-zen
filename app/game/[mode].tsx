@@ -298,6 +298,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     gap: 12,
-    paddingHorizontal: 16,
+    // 패딩을 두지 않는다: onLayout(border-box)와 PourStream 오버레이(absoluteFill)의
+    // 좌표 원점을 일치시키기 위함. 좌우 여백은 computeTubeScale(winW-32)+중앙정렬로 확보.
   },
 });
