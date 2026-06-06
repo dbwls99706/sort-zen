@@ -6,10 +6,7 @@ import {
 } from 'react-native-google-mobile-ads';
 import { useUserStore } from '../store/userStore';
 import { AD_UNITS } from './constants';
-
-const FIRST_RUN_GRACE_MS = 5 * 60 * 1000;
-const INTERSTITIAL_COOLDOWN_MS = 60 * 1000;
-const INTERSTITIAL_LEVEL_INTERVAL = 3;
+import { shouldShowInterstitial, FIRST_RUN_GRACE_MS } from './adPolicy';
 
 class AdManagerClass {
   private interstitial: InterstitialAd | null = null;
@@ -42,13 +39,23 @@ class AdManagerClass {
 
   async maybeShowInterstitial(mode: 'classic' | 'zen'): Promise<void> {
     if (mode === 'zen') return;
-    if (useUserStore.getState().isPremium) return;
+    const isPremium = useUserStore.getState().isPremium;
+    if (isPremium) return;
+    // grace period 동안의 클리어는 카운트하지 않는다 (정책 카운터 시맨틱 보존).
     if (Date.now() - this.appStartedAt < FIRST_RUN_GRACE_MS) return;
 
     this.clearCount++;
-    if (this.clearCount % INTERSTITIAL_LEVEL_INTERVAL !== 0) return;
-    if (Date.now() - this.lastInterstitialAt < INTERSTITIAL_COOLDOWN_MS)
-      return;
+
+    // 노출 여부 판단은 단위 테스트로 검증된 순수 정책 함수에 위임한다.
+    const allowed = shouldShowInterstitial({
+      mode,
+      isPremium,
+      appStartedAt: this.appStartedAt,
+      now: Date.now(),
+      clearCount: this.clearCount,
+      lastInterstitialAt: this.lastInterstitialAt,
+    });
+    if (!allowed) return;
 
     if (this.interstitial?.loaded) {
       try {
