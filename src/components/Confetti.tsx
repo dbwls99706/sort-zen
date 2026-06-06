@@ -8,16 +8,11 @@ import {
   Easing,
   SharedValue,
 } from 'react-native-reanimated';
+import { prand } from '../utils/prand';
 
 const BURST_DURATION_MS = 1500;
 const PIECE_COUNT = 22;
 const FADE_START = 0.7;
-
-/** 인덱스 기반 결정적 의사난수 (렌더 순수성 보장, 0~1) */
-function prand(i: number, salt: number): number {
-  const x = Math.sin((i + 1) * 12.9898 + salt * 78.233) * 43758.5453;
-  return x - Math.floor(x);
-}
 
 type Piece = {
   angle: number;

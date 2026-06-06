@@ -11,6 +11,7 @@ import {
   TUBE_SELECTED_LIFT,
 } from '../../src/components/Tube';
 import { PourStream } from '../../src/components/PourAnimation';
+import { Background } from '../../src/components/Background';
 import { HUD } from '../../src/components/HUD';
 import { ClearModal } from '../../src/components/ClearModal';
 import { SoundManager } from '../../src/audio/SoundManager';
@@ -212,6 +213,7 @@ export default function GameScreen() {
     <SafeAreaView
       style={[styles.container, { backgroundColor: theme.background }]}
     >
+      <Background />
       <HUD
         level={level}
         coins={coins}
