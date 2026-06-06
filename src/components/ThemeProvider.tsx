@@ -20,12 +20,13 @@ const PASTEL_COLORS: ThemeColors = {
   text: '#333333',
   textSecondary: '#888888',
   accent: '#FF9A76',
-  tubeOutline: '#CCCCCC',
+  tubeOutline: '#BCC2CC',
   tubeBackground: '#F5F5F5',
+  // 색상환 전체에 고르게 분산해 보드 구분성 확보(부드러운 파스텔 유지)
   colors: [
-    '#FF9A9E', '#FAD0C4', '#A1C4FD', '#C2E9FB',
-    '#D4FC79', '#96E6A1', '#FFECD2', '#FCB69F',
-    '#A18CD1', '#FBC2EB', '#84FAB0', '#FFD1FF',
+    '#FF8A8A', '#FFAE7A', '#FFD36B', '#F2E96B',
+    '#B6E07A', '#79D98E', '#5FD3BE', '#6CC6EE',
+    '#7AA6F0', '#9D8CF0', '#C58CE6', '#F58CC8',
   ],
 };
 
