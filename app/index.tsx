@@ -8,6 +8,7 @@ import { SoundManager } from '../src/audio/SoundManager';
 import { Haptic } from '../src/utils/haptics';
 import { AdBanner } from '../src/ads/banner';
 import { Onboarding } from '../src/components/Onboarding';
+import { Background } from '../src/components/Background';
 import { useTranslation } from '../src/i18n';
 
 export default function MainMenu() {
@@ -32,6 +33,7 @@ export default function MainMenu() {
     <SafeAreaView
       style={[styles.container, { backgroundColor: theme.background }]}
     >
+      <Background />
       <View style={styles.titleArea}>
         <Text style={[styles.title, { color: theme.text }]}>{t('app_name')}</Text>
         <Text style={[styles.subtitle, { color: theme.textSecondary }]}>

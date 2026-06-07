@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useTheme } from './ThemeProvider';
 import { useTranslation } from '../i18n';
+import { UndoIcon, ResetIcon, PauseIcon } from './icons';
 
 type HUDProps = {
   level: number;
@@ -44,13 +45,13 @@ export function HUD({
 
       <View style={styles.right}>
         <Pressable onPress={onUndo} style={styles.button}>
-          <Text style={[styles.buttonText, { color: theme.text }]}>↩</Text>
+          <UndoIcon color={theme.text} />
         </Pressable>
         <Pressable onPress={onReset} style={styles.button}>
-          <Text style={[styles.buttonText, { color: theme.text }]}>↻</Text>
+          <ResetIcon color={theme.text} />
         </Pressable>
         <Pressable onPress={onPause} style={styles.button}>
-          <Text style={[styles.buttonText, { color: theme.text }]}>⏸</Text>
+          <PauseIcon color={theme.text} />
         </Pressable>
       </View>
     </View>
@@ -98,8 +99,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(0,0,0,0.05)',
-  },
-  buttonText: {
-    fontSize: 18,
   },
 });

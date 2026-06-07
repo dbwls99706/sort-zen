@@ -8,6 +8,7 @@ import { useTheme } from '../src/components/ThemeProvider';
 import { SoundManager } from '../src/audio/SoundManager';
 import { Haptic } from '../src/utils/haptics';
 import { AdBanner } from '../src/ads/banner';
+import { VolumeControl } from '../src/components/VolumeControl';
 import { useTranslation } from '../src/i18n';
 
 type Theme = 'pastel' | 'neon' | 'dark';
@@ -25,11 +26,17 @@ export default function SettingsScreen() {
     soundEnabled,
     bgmEnabled,
     hapticEnabled,
+    masterVolume,
+    sfxVolume,
+    bgmVolume,
     theme: currentTheme,
     language,
     toggleSound,
     toggleBgm,
     toggleHaptic,
+    setMasterVolume,
+    setSfxVolume,
+    setBgmVolume,
     setTheme,
     setLanguage,
   } = useSettingsStore();
@@ -74,6 +81,44 @@ export default function SettingsScreen() {
           value={hapticEnabled}
           onToggle={toggleHaptic}
           theme={theme}
+        />
+      </View>
+
+      <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>
+        {t('volume')}
+      </Text>
+      <View>
+        <VolumeControl
+          label={t('vol_master')}
+          value={masterVolume}
+          onChange={(v) => {
+            setMasterVolume(v);
+            Haptic.light();
+            SoundManager.refreshBgmVolume();
+            SoundManager.refreshSfxVolume().then(() =>
+              SoundManager.play('button_tap'),
+            );
+          }}
+        />
+        <VolumeControl
+          label={t('vol_sfx')}
+          value={sfxVolume}
+          onChange={(v) => {
+            setSfxVolume(v);
+            Haptic.light();
+            SoundManager.refreshSfxVolume().then(() =>
+              SoundManager.play('button_tap'),
+            );
+          }}
+        />
+        <VolumeControl
+          label={t('vol_bgm')}
+          value={bgmVolume}
+          onChange={(v) => {
+            setBgmVolume(v);
+            Haptic.light();
+            SoundManager.refreshBgmVolume();
+          }}
         />
       </View>
 

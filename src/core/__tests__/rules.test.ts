@@ -2,6 +2,7 @@ import {
   canPour,
   pour,
   isCleared,
+  isTubeComplete,
   topColor,
   topRunLength,
   applyUndo,
@@ -108,6 +109,27 @@ describe('pour', () => {
     pour(from, to);
     expect(from.layers).toEqual(originalFromLayers);
     expect(to.layers).toEqual(originalToLayers);
+  });
+});
+
+describe('isTubeComplete', () => {
+  test('용량만큼 단색으로 가득 차면 완성', () => {
+    expect(isTubeComplete({ id: 0, capacity: 4, layers: [2, 2, 2, 2] })).toBe(
+      true,
+    );
+  });
+
+  test('덜 찼거나 섞여있으면 완성 아님', () => {
+    expect(isTubeComplete({ id: 0, capacity: 4, layers: [2, 2, 2] })).toBe(
+      false,
+    );
+    expect(isTubeComplete({ id: 1, capacity: 4, layers: [2, 2, 1, 2] })).toBe(
+      false,
+    );
+  });
+
+  test('빈 튜브는 완성 아님', () => {
+    expect(isTubeComplete({ id: 0, capacity: 4, layers: [] })).toBe(false);
   });
 });
 

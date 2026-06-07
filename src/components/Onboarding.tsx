@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet, Dimensions } from 'react-native';
 import { useTranslation } from '../i18n';
+import { OnboardingIllustration } from './OnboardingIllustration';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -31,6 +32,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   return (
     <View style={styles.container}>
       <View style={styles.content}>
+        <OnboardingIllustration />
         <Text style={styles.title}>{t(slide.title)}</Text>
         <Text style={styles.description}>{t(slide.desc)}</Text>
       </View>

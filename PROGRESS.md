@@ -47,3 +47,14 @@
 - [2026-06-06] 사운드 검토: 기존 pour음이 정수배 하모닉 합성톤(배음비 1:2:3:4)이라 ASMR 약함 확인
 - [2026-06-06] T102 완료: synth_audio.py로 전 효과음 재합성. 마림바 배음 1:3:4:9 검증, 물텍스처, 모노세이프 스테레오, BGM 60초 mp3, 자산 5.8→3.4MB
 - [2026-06-06] T103 완료: 도전과제(16개)/데일리 과제 코어+스토어+UI+i18n. 테스트 101개 통과. 연결코드(index/game)는 사용자 WIP와 동일파일이라 작업트리 잔여
+- [2026-06-06] T110 완료: PourStream(Skia trim 호 연출)로 붓기 시각화, 착지 시점에 store 커밋+pour 사운드 동기화. PourAnimation.tsx 죽은 코드(날아가는 원) 대체
+- [2026-06-06] T111 완료: Tube 액체에 세로 그라데이션+유리광택+림라이트+기포 추가, geometry.ts/color.ts 분리(파일 책임 정리)
+- [2026-06-06] T112 완료: isTubeComplete 추출+테스트3개, 튜브 신규 완성 시 complete_tube(미사용 자산 활성화)+햅틱+글로우/팝. 클리어 순간엔 level_clear에 양보
+- [2026-06-06] T113 완료: ClearModal 카드 바운스인+별 스태거 버스트, Confetti.tsx(Skia 22파티클, prand 순수난수). P0(코어 루프 만족감) 완료
+- [2026-06-06] T114 완료: 파스텔 12색을 색상환 균등 분산으로 재튜닝(핑크/피치 4색 중복 해소), tubeOutline 대비 상향(#CCC→#BCC2CC)
+- [2026-06-06] T115 완료: Background.tsx(그라데이션+드리프트 보케 6개), 메뉴/게임 연결, prand를 utils/prand.ts로 공용화. P1(팔레트·화면 일관성) 완료
+- [2026-06-06] T116 완료: computeTubeScale(선형탐색 순수함수)로 반응형 튜브 스케일, 붓기 좌표·스트림 스케일 반영. tube/dimensions.ts 분리로 jest에서 Skia 미로드 이슈 해결
+- [2026-06-06] T117 완료: icons.tsx(Skia 벡터 Undo/Reset/Pause)로 HUD 텍스트 글리프 대체, 미사용 스타일 제거
+- [2026-06-06] T118 완료: master/SFX/BGM 볼륨 세그먼트 컨트롤, settingsStore 볼륨 상태(+클램프/테스트), SoundManager 볼륨 적용+refreshBgmVolume, i18n 4키. ZEN 앰비언스는 bgm_zen 루프로 대체(numpy 부재로 신규 합성 보류)
+- [2026-06-06] T119 완료: OnboardingIllustration(미니 튜브3+반복 붓기 스트림)으로 온보딩 상단 시각화. P2(폴리시) 완료 → juice 오버홀 P0~P2 전체 완료
+- [2026-06-06] 코드 리뷰(juice 오버홀): 정확성/클린업 다각도 리뷰. 수정 T130~T133(좌표 버그/사운드 지연/stale 커밋/색 파서 방어). persist 볼륨 NaN 의혹은 zustand 얕은 merge로 안전(REFUTED). 성능/리팩터/뮤트UX는 T134~T136 등록
