@@ -23,7 +23,8 @@ export function VolumeControl({ label, value, onChange }: VolumeControlProps) {
           <Pressable
             key={i}
             hitSlop={6}
-            onPress={() => onChange((i + 1) / STEPS)}
+            // 이미 최저 단계에서 첫 막대를 다시 누르면 음소거(0)
+            onPress={() => onChange(i === 0 && active === 1 ? 0 : (i + 1) / STEPS)}
             style={[
               styles.bar,
               {

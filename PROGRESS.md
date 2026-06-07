@@ -58,3 +58,4 @@
 - [2026-06-06] T118 완료: master/SFX/BGM 볼륨 세그먼트 컨트롤, settingsStore 볼륨 상태(+클램프/테스트), SoundManager 볼륨 적용+refreshBgmVolume, i18n 4키. ZEN 앰비언스는 bgm_zen 루프로 대체(numpy 부재로 신규 합성 보류)
 - [2026-06-06] T119 완료: OnboardingIllustration(미니 튜브3+반복 붓기 스트림)으로 온보딩 상단 시각화. P2(폴리시) 완료 → juice 오버홀 P0~P2 전체 완료
 - [2026-06-06] 코드 리뷰(juice 오버홀): 정확성/클린업 다각도 리뷰. 수정 T130~T133(좌표 버그/사운드 지연/stale 커밋/색 파서 방어). persist 볼륨 NaN 의혹은 zustand 얕은 merge로 안전(REFUTED). 성능/리팩터/뮤트UX는 T134~T136 등록
+- [2026-06-06] 번들 스모크 테스트(expo export): @babel/runtime 미호이스트로 번들 실패 발견 → .npmrc node-linker=hoisted로 해결, iOS 번들 성공(4.2MB). T135(스트림 로직 streamPath 추출)/T136(볼륨 뮤트)/T134(게임 배경 정적화) 처리. 워클릿 추출 후 재export로 번들 재확인

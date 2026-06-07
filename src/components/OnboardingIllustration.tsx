@@ -1,11 +1,5 @@
 import React, { useMemo } from 'react';
-import {
-  Canvas,
-  Group,
-  RoundedRect,
-  Path,
-  Skia,
-} from '@shopify/react-native-skia';
+import { Canvas, Group, RoundedRect, Path } from '@shopify/react-native-skia';
 import {
   useSharedValue,
   useDerivedValue,
@@ -14,6 +8,7 @@ import {
   Easing,
 } from 'react-native-reanimated';
 import { useTheme } from './ThemeProvider';
+import { makeArcPath, trimmedStream } from './streamPath';
 
 const W = 218;
 const H = 150;
@@ -23,6 +18,7 @@ const BASE_Y = 124;
 const SEG_H = 22;
 const TUBE_X = [26, 92, 158];
 const FILL_PHASE = 0.5;
+const ARC_LIFT = 34;
 
 // 데코용 미니 보드 (각 튜브의 색 인덱스 구성)
 const LAYOUT: number[][] = [
@@ -49,22 +45,14 @@ export function OnboardingIllustration() {
   const toX = TUBE_X[1] + TUBE_W / 2;
   const toY = BASE_Y - LAYOUT[1].length * SEG_H;
 
-  const basePath = useMemo(() => {
-    const peakY = Math.min(fromY, toY) - 34;
-    const p = Skia.Path.Make();
-    p.moveTo(fromX, fromY);
-    p.cubicTo(fromX, peakY, toX, peakY, toX, toY);
-    return p;
-  }, [fromX, fromY, toX, toY]);
+  const basePath = useMemo(
+    () => makeArcPath(fromX, fromY, toX, toY, ARC_LIFT),
+    [fromX, fromY, toX, toY],
+  );
 
-  const streamPath = useDerivedValue(() => {
-    const t = progress.value;
-    const head = t < FILL_PHASE ? t / FILL_PHASE : 1;
-    const tail = t < FILL_PHASE ? 0 : (t - FILL_PHASE) / (1 - FILL_PHASE);
-    const copy = basePath.copy();
-    copy.trim(tail, head, false);
-    return copy;
-  });
+  const streamPath = useDerivedValue(() =>
+    trimmedStream(basePath, progress.value, FILL_PHASE),
+  );
 
   return (
     <Canvas style={{ width: W, height: H, marginBottom: 28 }}>

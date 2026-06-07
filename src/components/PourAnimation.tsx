@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { StyleSheet } from 'react-native';
-import { Canvas, Path, Circle, Skia } from '@shopify/react-native-skia';
+import { Canvas, Path, Circle } from '@shopify/react-native-skia';
 import {
   useSharedValue,
   useDerivedValue,
@@ -8,6 +8,7 @@ import {
   runOnJS,
   Easing,
 } from 'react-native-reanimated';
+import { makeArcPath, trimmedStream } from './streamPath';
 
 const POUR_DURATION_MS = 520;
 const FILL_PHASE = 0.55; // 스트림 머리가 대상 입구에 닿는 진행도
@@ -55,22 +56,14 @@ export function PourStream({
     );
   }, [progress, onComplete]);
 
-  const basePath = useMemo(() => {
-    const peakY = Math.min(fromY, toY) - arcLift;
-    const path = Skia.Path.Make();
-    path.moveTo(fromX, fromY);
-    path.cubicTo(fromX, peakY, toX, peakY, toX, toY);
-    return path;
-  }, [fromX, fromY, toX, toY, arcLift]);
+  const basePath = useMemo(
+    () => makeArcPath(fromX, fromY, toX, toY, arcLift),
+    [fromX, fromY, toX, toY, arcLift],
+  );
 
-  const streamPath = useDerivedValue(() => {
-    const t = progress.value;
-    const head = t < FILL_PHASE ? t / FILL_PHASE : 1;
-    const tail = t < FILL_PHASE ? 0 : (t - FILL_PHASE) / (1 - FILL_PHASE);
-    const copy = basePath.copy();
-    copy.trim(tail, head, false);
-    return copy;
-  });
+  const streamPath = useDerivedValue(() =>
+    trimmedStream(basePath, progress.value, FILL_PHASE),
+  );
 
   const splashRadius = useDerivedValue(() => {
     const t = progress.value;
