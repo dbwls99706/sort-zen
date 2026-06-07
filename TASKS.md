@@ -102,6 +102,8 @@
 - [x] T131 효과음 볼륨 캐싱(재생마다 setVolumeAsync 제거)
 - [x] T132 붓기 중 화면 이탈 시 stale 커밋 방지(mounted 가드) + prevCompleted 새 보드 초기화
 - [x] T133 color 유틸 비정상 hex 입력 방어 + 테스트
-- [ ] T134 (성능) Background BlurMask 6개/Tube 웨이브·기포 14개 상시 60fps 렌더 최적화 — 저사양 프로파일링 후 단일 클럭/정적 레이어 검토
-- [ ] T135 (리팩터) PourStream/OnboardingIllustration의 아크+trim 스트림 로직 공용 헬퍼로 추출
-- [ ] T136 (UX) VolumeControl에서 0(뮤트) 도달 가능하게 — 현재 최소 0.2, 토글로만 음소거
+- [x] T134 (성능 1차) 게임 화면 배경 정적화(보케 드리프트 off)로 붓기 중 블러 상시 재페인트 제거. 튜브 웨이브/기포 최적화는 실기기 프로파일링 후속 과제
+- [x] T135 (리팩터) PourStream/OnboardingIllustration의 아크+trim 스트림 로직 공용 모듈(streamPath)로 추출
+- [x] T136 (UX) VolumeControl 음소거(0) 도달 — 최저 단계 재탭 시 mute
+- [x] T137 (빌드) pnpm node-linker=hoisted — Metro의 @babel/runtime 미해석으로 번들 불가하던 문제 해결, expo export 번들 성공 검증
+- [ ] T138 (성능) 튜브 웨이브/기포 60fps×N 상시 렌더 — 단일 공유 클럭/정적 레이어 검토(실기기 프로파일링 필요)

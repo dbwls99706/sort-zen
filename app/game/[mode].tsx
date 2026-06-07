@@ -238,7 +238,7 @@ export default function GameScreen() {
     <SafeAreaView
       style={[styles.container, { backgroundColor: theme.background }]}
     >
-      <Background />
+      <Background animated={false} />
       <HUD
         level={level}
         coins={coins}

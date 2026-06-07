@@ -52,18 +52,23 @@ function Bokeh({
   );
 }
 
-/** 화면 뒤에 깔리는 은은한 그라데이션 + 천천히 떠다니는 보케 (힐링 톤) */
-export function Background() {
+/**
+ * 화면 뒤에 깔리는 은은한 그라데이션 + 보케 (힐링 톤).
+ * animated=false면 보케 드리프트를 멈춰 블러 레이어 상시 재페인트를 없앤다
+ * (붓기가 부드러워야 하는 게임 화면에서 GPU 비용 절감).
+ */
+export function Background({ animated = true }: { animated?: boolean }) {
   const theme = useTheme();
   const clock = useSharedValue(0);
 
   React.useEffect(() => {
+    if (!animated) return;
     clock.value = withRepeat(
       withTiming(2 * Math.PI, { duration: 9000, easing: Easing.linear }),
       -1,
       false,
     );
-  }, [clock]);
+  }, [clock, animated]);
 
   return (
     <Canvas style={StyleSheet.absoluteFill} pointerEvents="none">
