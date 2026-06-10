@@ -82,5 +82,6 @@
   "daily_clearUnderMoves": "Clear {n} levels under {m} moves",
   "stuck_title": "Stuck!",
   "stuck_desc": "No more possible moves.\nUndo or start a fresh board.",
-  "new_board": "New Board"
+  "new_board": "New Board",
+  "add_tube": "Watch Ad: +1 Tube"
 }

@@ -82,5 +82,6 @@
   "daily_clearUnderMoves": "{m}번 이내로 {n}판 클리어",
   "stuck_title": "막혔어요!",
   "stuck_desc": "더 이상 부을 수 있는 곳이 없어요.\n되돌리거나 새 보드로 다시 시작하세요.",
-  "new_board": "새 보드"
+  "new_board": "새 보드",
+  "add_tube": "광고 보고 튜브 +1"
 }

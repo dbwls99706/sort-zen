@@ -13,10 +13,13 @@ type GameStoreState = {
   mode: GameMode;
   level: number;
   cleared: boolean;
+  /** 이번 보드에서 추가 튜브(리워드 광고 보상)를 이미 썼는지 — 보드당 1회 (T144) */
+  extraTubeUsed: boolean;
   startNewGame: (mode: GameMode, level?: number) => void;
   selectTube: (id: number) => void;
   undo: () => void;
   reset: () => void;
+  addExtraTube: () => void;
 };
 
 export const useGameStore = create<GameStoreState>()((set, get) => ({
@@ -26,6 +29,7 @@ export const useGameStore = create<GameStoreState>()((set, get) => ({
   mode: 'classic' as GameMode,
   level: 1,
   cleared: false,
+  extraTubeUsed: false,
 
   startNewGame: (mode, level) => {
     const lvl = level ?? 1;
@@ -39,6 +43,7 @@ export const useGameStore = create<GameStoreState>()((set, get) => ({
       mode,
       level: lvl,
       cleared: false,
+      extraTubeUsed: false,
     });
   },
 
@@ -101,5 +106,17 @@ export const useGameStore = create<GameStoreState>()((set, get) => ({
   reset: () => {
     const { mode, level } = get();
     get().startNewGame(mode, level);
+  },
+
+  /** 빈 튜브 1개를 보드 끝에 추가 (데드엔드 회복, 보드당 1회) */
+  addExtraTube: () => {
+    const { tubes, extraTubeUsed, cleared } = get();
+    if (extraTubeUsed || cleared || tubes.length === 0) return;
+    const newTube: Tube = {
+      id: Math.max(...tubes.map((t) => t.id)) + 1,
+      capacity: tubes[0].capacity,
+      layers: [],
+    };
+    set({ tubes: [...tubes, newTube], extraTubeUsed: true });
   },
 }));

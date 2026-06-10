@@ -79,4 +79,30 @@ describe('gameStore', () => {
     expect(useGameStore.getState().mode).toBe('zen');
     expect(useGameStore.getState().tubes.length).toBeGreaterThan(0);
   });
+
+  test('addExtraTube는 빈 튜브 1개를 추가한다 (T144)', () => {
+    const before = useGameStore.getState().tubes;
+    useGameStore.getState().addExtraTube();
+    const after = useGameStore.getState().tubes;
+    expect(after.length).toBe(before.length + 1);
+    const added = after[after.length - 1];
+    expect(added.layers).toEqual([]);
+    expect(added.capacity).toBe(before[0].capacity);
+    expect(added.id).toBeGreaterThan(Math.max(...before.map((t) => t.id)));
+    expect(useGameStore.getState().extraTubeUsed).toBe(true);
+  });
+
+  test('addExtraTube는 보드당 1회만 동작한다', () => {
+    useGameStore.getState().addExtraTube();
+    const count = useGameStore.getState().tubes.length;
+    useGameStore.getState().addExtraTube();
+    expect(useGameStore.getState().tubes.length).toBe(count);
+  });
+
+  test('startNewGame은 extraTubeUsed를 초기화한다', () => {
+    useGameStore.getState().addExtraTube();
+    expect(useGameStore.getState().extraTubeUsed).toBe(true);
+    useGameStore.getState().startNewGame('classic', 2);
+    expect(useGameStore.getState().extraTubeUsed).toBe(false);
+  });
 });

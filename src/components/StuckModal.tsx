@@ -8,14 +8,17 @@ type StuckModalProps = {
   canUndo: boolean;
   onUndo: () => void;
   onNewBoard: () => void;
+  /** 리워드 광고로 빈 튜브 1개 추가 (T144) — 미전달 시 버튼 숨김 */
+  onAddTube?: () => void;
 };
 
-/** 합법 수가 없을 때 탈출 경로(되돌리기/새 보드)를 안내한다 (T142). */
+/** 합법 수가 없을 때 탈출 경로(튜브 추가/되돌리기/새 보드)를 안내한다 (T142). */
 export function StuckModal({
   visible,
   canUndo,
   onUndo,
   onNewBoard,
+  onAddTube,
 }: StuckModalProps) {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -31,12 +34,34 @@ export function StuckModal({
             {t('stuck_desc')}
           </Text>
 
-          {canUndo && (
+          {onAddTube && (
             <Pressable
               style={[styles.button, { backgroundColor: theme.accent }]}
+              onPress={onAddTube}
+            >
+              <Text style={styles.buttonText}>{t('add_tube')}</Text>
+            </Pressable>
+          )}
+
+          {canUndo && (
+            <Pressable
+              style={[
+                styles.button,
+                onAddTube
+                  ? [styles.secondaryButton, { borderColor: theme.accent }]
+                  : { backgroundColor: theme.accent },
+              ]}
               onPress={onUndo}
             >
-              <Text style={styles.buttonText}>{t('undo')}</Text>
+              <Text
+                style={
+                  onAddTube
+                    ? [styles.secondaryButtonText, { color: theme.accent }]
+                    : styles.buttonText
+                }
+              >
+                {t('undo')}
+              </Text>
             </Pressable>
           )}
 
@@ -44,6 +69,7 @@ export function StuckModal({
             style={[
               styles.button,
               styles.secondaryButton,
+              styles.lastButton,
               { borderColor: theme.accent },
             ]}
             onPress={onNewBoard}
@@ -92,6 +118,8 @@ const styles = StyleSheet.create({
   secondaryButton: {
     backgroundColor: 'transparent',
     borderWidth: 1.5,
+  },
+  lastButton: {
     marginBottom: 0,
   },
   buttonText: {

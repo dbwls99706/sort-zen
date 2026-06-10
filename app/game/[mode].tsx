@@ -67,6 +67,8 @@ export default function GameScreen() {
   const undo = useGameStore((s) => s.undo);
   const reset = useGameStore((s) => s.reset);
   const startNewGame = useGameStore((s) => s.startNewGame);
+  const extraTubeUsed = useGameStore((s) => s.extraTubeUsed);
+  const addExtraTube = useGameStore((s) => s.addExtraTube);
 
   const coins = useUserStore((s) => s.coins);
   const userLevel = useUserStore((s) => s.level);
@@ -278,6 +280,15 @@ export default function GameScreen() {
     });
   };
 
+  // 추가 튜브 (T144): 리워드 광고를 끝까지 보면 빈 튜브 1개 (보드당 1회, 클래식 전용)
+  const handleAddTube = () => {
+    SoundManager.play('button_tap');
+    Haptic.light();
+    AdManager.showRewarded(() => {
+      if (mounted.current) addExtraTube();
+    });
+  };
+
   const handleUndo = () => {
     if (animatingPour) return;
     SoundManager.play('button_tap');
@@ -388,6 +399,9 @@ export default function GameScreen() {
         canUndo={moves.length > 0}
         onUndo={handleUndo}
         onNewBoard={handleReset}
+        onAddTube={
+          mode === 'classic' && !extraTubeUsed ? handleAddTube : undefined
+        }
       />
 
       <ClearModal
