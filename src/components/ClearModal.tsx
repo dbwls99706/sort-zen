@@ -20,6 +20,7 @@ import { useTranslation } from '../i18n';
 import { Confetti } from './Confetti';
 import { SoundManager } from '../audio/SoundManager';
 import { Haptic } from '../utils/haptics';
+import { useProgressStore } from '../store/progressStore';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const STAR_DELAYS = [0, 110, 220];
@@ -49,6 +50,24 @@ export function ClearModal({
 }: ClearModalProps) {
   const theme = useTheme();
   const { t } = useTranslation();
+  const daily = useProgressStore((s) => s.daily);
+  const streak = useProgressStore((s) => s.dailyStreak);
+
+  // 데일리 진행/스트릭 훅 (T121) — 클리어 직후 다음 목표를 보여준다
+  const dailyParts: string[] = [];
+  if (daily && !daily.claimed) {
+    dailyParts.push(
+      `⚡ ${
+        daily.completed
+          ? t('challenge_done')
+          : `${Math.min(daily.progress, daily.goal)}/${daily.goal}`
+      }`,
+    );
+  }
+  if (streak > 0) {
+    dailyParts.push(`🔥 ${t('daily_streak', { n: streak })}`);
+  }
+  const dailyLine = dailyParts.join('  ·  ');
 
   const cardScale = useSharedValue(0.7);
   const cardOpacity = useSharedValue(0);
@@ -137,9 +156,20 @@ export function ClearModal({
           <Text style={[styles.moves, { color: theme.textSecondary }]}>
             {moveCount} {t('moves')}
           </Text>
-          <Text style={[styles.reward, { color: theme.accent }]}>
+          <Text
+            style={[
+              styles.reward,
+              !dailyLine && styles.rewardSolo,
+              { color: theme.accent },
+            ]}
+          >
             +{coinReward} 🪙
           </Text>
+          {!!dailyLine && (
+            <Text style={[styles.dailyHook, { color: theme.textSecondary }]}>
+              {dailyLine}
+            </Text>
+          )}
 
           <Pressable
             style={[styles.button, { backgroundColor: theme.accent }]}
@@ -207,6 +237,14 @@ const styles = StyleSheet.create({
   reward: {
     fontSize: 16,
     fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  rewardSolo: {
+    marginBottom: 24,
+  },
+  dailyHook: {
+    fontSize: 13,
+    fontWeight: '600',
     marginBottom: 24,
   },
   button: {
