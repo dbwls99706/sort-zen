@@ -3,6 +3,7 @@ import { Tube, Move } from '../core/types';
 import { pour, isCleared, applyUndo } from '../core/rules';
 import { generateLevel } from '../core/generator';
 import { getDifficulty, getZenParams } from '../core/difficulty';
+import { findSolution } from '../core/solver';
 
 type GameMode = 'classic' | 'zen';
 
@@ -15,6 +16,8 @@ type GameStoreState = {
   cleared: boolean;
   /** 이번 보드에서 추가 튜브(리워드 광고 보상)를 이미 썼는지 — 보드당 1회 (T144) */
   extraTubeUsed: boolean;
+  /** 시작 보드의 솔버 해 길이 — 무브 효율 별점 기준 (T145). 미상이면 null */
+  optimalMoves: number | null;
   startNewGame: (mode: GameMode, level?: number) => void;
   selectTube: (id: number) => void;
   undo: () => void;
@@ -30,12 +33,14 @@ export const useGameStore = create<GameStoreState>()((set, get) => ({
   level: 1,
   cleared: false,
   extraTubeUsed: false,
+  optimalMoves: null,
 
   startNewGame: (mode, level) => {
     const lvl = level ?? 1;
     const params =
       mode === 'classic' ? getDifficulty(lvl) : getZenParams();
     const tubes = generateLevel(params);
+    const solution = findSolution(tubes);
     set({
       tubes,
       moves: [],
@@ -44,6 +49,7 @@ export const useGameStore = create<GameStoreState>()((set, get) => ({
       level: lvl,
       cleared: false,
       extraTubeUsed: false,
+      optimalMoves: solution ? solution.length : null,
     });
   },
 

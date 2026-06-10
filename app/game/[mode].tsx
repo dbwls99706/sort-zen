@@ -25,6 +25,7 @@ import { Haptic } from '../../src/utils/haptics';
 import { AdManager } from '../../src/ads/AdManager';
 import { pour, isTubeComplete } from '../../src/core/rules';
 import { hasLegalMove, findSolution } from '../../src/core/solver';
+import { calcStars, clearCoinReward } from '../../src/core/scoring';
 import { HINT_COST } from '../../src/core/constants';
 import { StuckModal } from '../../src/components/StuckModal';
 import {
@@ -69,6 +70,7 @@ export default function GameScreen() {
   const startNewGame = useGameStore((s) => s.startNewGame);
   const extraTubeUsed = useGameStore((s) => s.extraTubeUsed);
   const addExtraTube = useGameStore((s) => s.addExtraTube);
+  const optimalMoves = useGameStore((s) => s.optimalMoves);
 
   const coins = useUserStore((s) => s.coins);
   const userLevel = useUserStore((s) => s.level);
@@ -129,13 +131,20 @@ export default function GameScreen() {
     };
   }, [mode, userLevel, startNewGame]);
 
+  // 무브 효율 별점 (T145) — 클리어 시점의 이동 수 기준
+  const stars = useMemo(
+    () => calcStars(moves.length, optimalMoves),
+    [moves.length, optimalMoves],
+  );
+  const coinReward = clearCoinReward(stars);
+
   // 클리어 감지 -> 보상 + 사운드
   useEffect(() => {
     if (cleared) {
       SoundManager.play('level_clear');
       Haptic.success();
       incrementCleared();
-      addCoins(10);
+      addCoins(clearCoinReward(calcStars(moves.length, optimalMoves)));
       recordClear({ mode, moveCount: moves.length });
       SoundManager.play('coin');
 
@@ -144,7 +153,7 @@ export default function GameScreen() {
         AdManager.maybeShowInterstitial(mode);
       }
     }
-  }, [cleared, mode, incrementCleared, addCoins, incrementLevel, recordClear, moves.length]);
+  }, [cleared, mode, incrementCleared, addCoins, incrementLevel, recordClear, moves.length, optimalMoves]);
 
   // 튜브 단색 완성 감지 → 미세 보상 사운드 + 햅틱 (클리어 순간은 level_clear에 양보)
   useEffect(() => {
@@ -409,6 +418,8 @@ export default function GameScreen() {
         level={level}
         moveCount={moves.length}
         mode={mode}
+        stars={stars}
+        coinReward={coinReward}
         onNextLevel={handleNextLevel}
         onMenu={handleMenu}
       />

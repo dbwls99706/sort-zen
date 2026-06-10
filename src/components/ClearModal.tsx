@@ -19,6 +19,10 @@ type ClearModalProps = {
   level: number;
   moveCount: number;
   mode: 'classic' | 'zen';
+  /** 무브 효율 별점 1~3 (T145) */
+  stars: 1 | 2 | 3;
+  /** 별점에 따른 코인 보상 */
+  coinReward: number;
   onNextLevel: () => void;
   onMenu: () => void;
 };
@@ -28,6 +32,8 @@ export function ClearModal({
   level,
   moveCount,
   mode,
+  stars,
+  coinReward,
   onNextLevel,
   onMenu,
 }: ClearModalProps) {
@@ -41,24 +47,28 @@ export function ClearModal({
   const s2 = useSharedValue(0);
 
   React.useEffect(() => {
-    const stars = [s0, s1, s2];
+    const starsAnim = [s0, s1, s2];
     if (visible) {
       cardOpacity.value = withTiming(1, { duration: 180 });
       cardScale.value = withSpring(1, { damping: 11, stiffness: 180 });
-      stars.forEach((s, i) => {
-        s.value = withDelay(
-          STAR_DELAYS[i],
-          withSpring(1, { damping: 6, stiffness: 210 }),
-        );
+      starsAnim.forEach((s, i) => {
+        // 획득한 별만 통통 튀고, 미획득 별은 흐리게 바로 표시
+        s.value =
+          i < stars
+            ? withDelay(
+                STAR_DELAYS[i],
+                withSpring(1, { damping: 6, stiffness: 210 }),
+              )
+            : withTiming(1, { duration: 150 });
       });
     } else {
       cardOpacity.value = 0;
       cardScale.value = 0.7;
-      stars.forEach((s) => {
+      starsAnim.forEach((s) => {
         s.value = 0;
       });
     }
-  }, [visible, cardOpacity, cardScale, s0, s1, s2]);
+  }, [visible, stars, cardOpacity, cardScale, s0, s1, s2]);
 
   const cardStyle = useAnimatedStyle(() => ({
     opacity: cardOpacity.value,
@@ -86,7 +96,10 @@ export function ClearModal({
         >
           <View style={styles.starRow}>
             {starStyles.map((st, i) => (
-              <Animated.Text key={i} style={[styles.star, st]}>
+              <Animated.Text
+                key={i}
+                style={[styles.star, st, i >= stars && styles.starDim]}
+              >
                 ★
               </Animated.Text>
             ))}
@@ -97,6 +110,9 @@ export function ClearModal({
           </Text>
           <Text style={[styles.moves, { color: theme.textSecondary }]}>
             {moveCount} {t('moves')}
+          </Text>
+          <Text style={[styles.reward, { color: theme.accent }]}>
+            +{coinReward} 🪙
           </Text>
 
           <Pressable
@@ -141,6 +157,9 @@ const styles = StyleSheet.create({
     fontSize: 40,
     color: '#FFD700',
   },
+  starDim: {
+    color: '#D5D5D5',
+  },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
@@ -148,6 +167,11 @@ const styles = StyleSheet.create({
   },
   moves: {
     fontSize: 14,
+    marginBottom: 8,
+  },
+  reward: {
+    fontSize: 16,
+    fontWeight: 'bold',
     marginBottom: 24,
   },
   button: {
