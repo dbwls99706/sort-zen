@@ -120,7 +120,7 @@
 - [x] T145 무브 효율 별점·코인 차등 — scoring.ts calcStars(솔버 해 길이 대비 ≤1.0x=3별/≤1.25x=2별) + 코인 10/15/20, ClearModal 미획득 별 흐림 표시, 테스트 6개
 - [x] T146 도전과제/데일리(T103) 메뉴·게임 연결 마무리 — 웹 작업분 커밋에 포함되어 완성 확인(게임 recordPour/recordClear, 메뉴 카드+배지, claimDaily)
 ### P2 — 난이도 튜닝
-- [ ] T147 난이도 재튜닝 — shuffleSteps 포화 캡 + 빈튜브 최소 2개 유지(빈튜브 1개는 ~0% 솔버블이라 T141 fallback churn 유발, 고레벨 생성 지연 ↑). 난이도는 색상/shuffleSteps로 조절
+- [x] T147 난이도 재튜닝 — 빈튜브 항상 2개(DEFAULT_EMPTY_TUBES) + shuffleSteps 캡 300(MAX_SHUFFLE_STEPS). T141 fallback churn 제거, 테스트 갱신
 
 ## Phase 17: MZ 감각 검토 후속 (ASMR 도파민 강화)
 - [x] T150 붓기 12음 매핑 + chainCount 복원 — playPour가 water_pour 단일음으로 퇴화했던 것을 색상→음계 매핑 + 같은 색 연속 붓기 음정 +1~+2로 복원 (docs/02-audio.md 이행)

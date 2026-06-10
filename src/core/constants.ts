@@ -3,6 +3,12 @@ export const MAX_COLORS = 12;
 export const MIN_COLORS = 3;
 export const DEFAULT_EMPTY_TUBES = 2;
 
+/**
+ * 난이도 셔플 포화 캡 (T147) — 이 이상은 체감 난이도 증가 없이
+ * 생성(솔버 검증) 지연만 키운다. 난이도는 색상 수로 조절한다.
+ */
+export const MAX_SHUFFLE_STEPS = 300;
+
 /** 힌트 1회 코인 비용. 부족하면 리워드 광고로 대체 (T143) */
 export const HINT_COST = 15;
 
