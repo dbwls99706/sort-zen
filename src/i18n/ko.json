@@ -83,5 +83,8 @@
   "stuck_title": "막혔어요!",
   "stuck_desc": "더 이상 부을 수 있는 곳이 없어요.\n되돌리거나 새 보드로 다시 시작하세요.",
   "new_board": "새 보드",
-  "add_tube": "광고 보고 튜브 +1"
+  "add_tube": "광고 보고 튜브 +1",
+  "share": "공유하기",
+  "share_message_classic": "Sort ZEN 레벨 {n}을 {m}번 만에 {s} 클리어! 🧪✨",
+  "share_message_zen": "Sort ZEN 퍼즐을 {m}번 만에 {s} 클리어! 🧪✨"
 }

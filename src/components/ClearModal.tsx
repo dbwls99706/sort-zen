@@ -1,5 +1,13 @@
 import React from 'react';
-import { View, Text, Pressable, Modal, StyleSheet, Dimensions } from 'react-native';
+import {
+  View,
+  Text,
+  Pressable,
+  Modal,
+  StyleSheet,
+  Dimensions,
+  Share,
+} from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -10,6 +18,8 @@ import Animated, {
 import { useTheme } from './ThemeProvider';
 import { useTranslation } from '../i18n';
 import { Confetti } from './Confetti';
+import { SoundManager } from '../audio/SoundManager';
+import { Haptic } from '../utils/haptics';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const STAR_DELAYS = [0, 110, 220];
@@ -81,6 +91,22 @@ export function ClearModal({
     useAnimatedStyle(() => ({ transform: [{ scale: s2.value }] })),
   ];
 
+  // 클리어 결과 공유 (T120) — OS 공유 시트
+  const handleShare = async () => {
+    SoundManager.play('button_tap');
+    Haptic.light();
+    const starsText = '★'.repeat(stars);
+    const message =
+      mode === 'classic'
+        ? t('share_message_classic', { n: level, m: moveCount, s: starsText })
+        : t('share_message_zen', { m: moveCount, s: starsText });
+    try {
+      await Share.share({ message });
+    } catch {
+      /* 공유 시트 취소/미지원 무시 */
+    }
+  };
+
   return (
     <Modal visible={visible} transparent animationType="fade">
       <View style={styles.overlay}>
@@ -121,6 +147,15 @@ export function ClearModal({
           >
             <Text style={styles.buttonText}>
               {mode === 'classic' ? t('next_level') : t('new_puzzle')}
+            </Text>
+          </Pressable>
+
+          <Pressable
+            style={[styles.shareButton, { borderColor: theme.accent }]}
+            onPress={handleShare}
+          >
+            <Text style={[styles.shareButtonText, { color: theme.accent }]}>
+              {t('share')}
             </Text>
           </Pressable>
 
@@ -185,6 +220,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: '#FFFFFF',
+  },
+  shareButton: {
+    width: '100%',
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  shareButtonText: {
+    fontSize: 15,
+    fontWeight: 'bold',
   },
   menuButton: {
     paddingVertical: 8,

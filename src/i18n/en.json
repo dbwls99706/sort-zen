@@ -83,5 +83,8 @@
   "stuck_title": "Stuck!",
   "stuck_desc": "No more possible moves.\nUndo or start a fresh board.",
   "new_board": "New Board",
-  "add_tube": "Watch Ad: +1 Tube"
+  "add_tube": "Watch Ad: +1 Tube",
+  "share": "Share",
+  "share_message_classic": "Cleared Sort ZEN level {n} in {m} moves {s}! 🧪✨",
+  "share_message_zen": "Cleared a Sort ZEN puzzle in {m} moves {s}! 🧪✨"
 }

@@ -72,3 +72,4 @@
 - [2026-06-10] T145 완료: 무브 효율 별점(calcStars: 솔버 해 대비 ≤1.0x=3별/≤1.25x=2별) + 코인 10/15/20 차등. ClearModal 미획득 별 흐림 + 보상 표시. 테스트 6개
 - [2026-06-10] T146 완료(검증): 도전과제/데일리 연결은 웹 작업분 커밋으로 이미 완성 — 게임(recordPour/recordClear), 메뉴(DailyChallengeCard+배지), 보상(claimDaily/syncAchievements) 동작 확인
 - [2026-06-10] T147 완료: 난이도 재튜닝 — 빈튜브 항상 2개 + shuffleSteps 캡 300. 빈튜브 1개 비-솔버블 fallback churn과 고레벨 생성 지연 제거. Phase 16 전체 완료
+- [2026-06-10] T120 완료: 클리어 공유 — ClearModal에 공유 버튼, OS 공유 시트로 레벨/이동수/별점 텍스트 전송(ko/en). 이미지 카드 내보내기는 의존성 추가 필요해 범위 외
