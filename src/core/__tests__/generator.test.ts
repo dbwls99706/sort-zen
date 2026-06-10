@@ -1,5 +1,6 @@
 import { generateLevel, GenParams } from '../generator';
 import { getDifficulty } from '../difficulty';
+import { isSolvable } from '../solver';
 import { DEFAULT_CAPACITY } from '../constants';
 
 function makeParams(overrides: Partial<GenParams> = {}): GenParams {
@@ -68,5 +69,26 @@ describe('generator', () => {
     const tubes = generateLevel(params);
     const total = tubes.reduce((s, t) => s + t.layers.length, 0);
     expect(total).toBe(params.filledTubes * params.capacity);
+  });
+
+  // T141: 솔버블 검증 게이트 — 빈튜브 1개로 비-솔버블이던 고레벨도 보장
+  test('모든 난이도 레벨이 솔버블한 보드를 생성한다', () => {
+    for (const level of [1, 30, 60, 100, 120, 150, 200]) {
+      const params = { ...getDifficulty(level), seed: `gate-${level}` };
+      const tubes = generateLevel(params);
+      expect(isSolvable(tubes)).toBe(true);
+    }
+  });
+
+  test('빈튜브 보강 fallback 후에도 색상은 capacity개로 보존된다', () => {
+    // 레벨 150은 빈튜브 1개로 사실상 항상 비-솔버블 → fallback 경로를 탄다
+    const params = { ...getDifficulty(150), seed: 'fallback-150' };
+    const tubes = generateLevel(params);
+    const counts: Record<number, number> = {};
+    tubes.forEach((t) =>
+      t.layers.forEach((c) => (counts[c] = (counts[c] || 0) + 1)),
+    );
+    Object.values(counts).forEach((n) => expect(n).toBe(params.capacity));
+    expect(isSolvable(tubes)).toBe(true);
   });
 });
