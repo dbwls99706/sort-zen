@@ -36,8 +36,12 @@ import {
 
 export { TUBE_SELECTED_LIFT, TUBE_CONTAINER_TOP_GAP } from './tube/geometry';
 
-const WAVE_AMPLITUDE = 2.5;
+const WAVE_AMPLITUDE = 3;
 const WAVE_STEPS = 12;
+/** 액체가 들어오고 나갈 때 표면이 크게 출렁이는 서지 진폭(기본 파동에 가산) */
+const WAVE_SURGE_AMPLITUDE = 5;
+/** 서지가 잦아드는 시간 */
+const WAVE_SURGE_DECAY_MS = 900;
 const SELECTED_OFFSET = -TUBE_SELECTED_LIFT;
 
 type TubeProps = {
@@ -110,6 +114,20 @@ export function TubeComponent({
     );
   }, [wavePhase]);
 
+  // 액체량이 바뀐 직후(붓기/받기) 표면이 크게 출렁였다가 잦아든다
+  const surge = useSharedValue(0);
+  const prevLayerCount = React.useRef(tube.layers.length);
+  React.useEffect(() => {
+    if (tube.layers.length !== prevLayerCount.current) {
+      surge.value = 1;
+      surge.value = withTiming(0, {
+        duration: WAVE_SURGE_DECAY_MS,
+        easing: Easing.out(Easing.cubic),
+      });
+    }
+    prevLayerCount.current = tube.layers.length;
+  }, [tube.layers.length, surge]);
+
   const clipPath = useMemo(() => makeClipPath(), []);
   const outlinePath = useMemo(() => makeOutlinePath(), []);
 
@@ -130,13 +148,14 @@ export function TubeComponent({
     const right = TUBE_WIDTH - 5;
     const stepWidth = (right - left) / WAVE_STEPS;
     const phase = wavePhase.value;
+    const amplitude = WAVE_AMPLITUDE + surge.value * WAVE_SURGE_AMPLITUDE;
 
     path.moveTo(left, TUBE_HEIGHT);
-    path.lineTo(left, y + Math.sin(phase) * WAVE_AMPLITUDE);
+    path.lineTo(left, y + Math.sin(phase) * amplitude);
     for (let i = 1; i <= WAVE_STEPS; i++) {
       const x = left + i * stepWidth;
       const t = i / WAVE_STEPS;
-      path.lineTo(x, y + Math.sin(phase + t * Math.PI * 2) * WAVE_AMPLITUDE);
+      path.lineTo(x, y + Math.sin(phase + t * Math.PI * 2) * amplitude);
     }
     path.lineTo(right, TUBE_HEIGHT);
     path.close();
