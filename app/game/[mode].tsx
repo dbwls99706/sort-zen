@@ -73,6 +73,7 @@ export default function GameScreen() {
   const tubeLayouts = useRef<Record<number, TubeLayout>>({});
   const prevCompleted = useRef<Set<number>>(new Set());
   const mounted = useRef(true);
+  const pourChain = useRef<{ colorId: number; count: number } | null>(null);
   const [animatingPour, setAnimatingPour] = useState<AnimatingPour | null>(null);
 
   // 튜브 수/화면에 맞춘 반응형 스케일 (오버플로 방지)
@@ -92,6 +93,7 @@ export default function GameScreen() {
     const lvl = mode === 'classic' ? userLevel : undefined;
     startNewGame(mode, lvl);
     prevCompleted.current = new Set();
+    pourChain.current = null;
 
     if (mode === 'zen') {
       SoundManager.playBGM('zen');
@@ -140,6 +142,16 @@ export default function GameScreen() {
 
   const handleTubeLayout = (id: number) => (e: LayoutChangeEvent) => {
     tubeLayouts.current[id] = e.nativeEvent.layout;
+  };
+
+  // 붓기 피드백: 같은 색 연속 붓기는 음이 살짝 올라간다 (docs/02-audio.md)
+  const playPourFeedback = (colorId: number) => {
+    const chain =
+      pourChain.current?.colorId === colorId ? pourChain.current.count + 1 : 0;
+    pourChain.current = { colorId, count: chain };
+    Haptic.medium();
+    SoundManager.playPour(colorId, chain);
+    recordPour();
   };
 
   const handlePourLand = useCallback(() => {
@@ -192,9 +204,7 @@ export default function GameScreen() {
         const toX = to.x + to.width / 2;
         const toY = to.y + 10 * scale;
 
-        Haptic.medium();
-        SoundManager.playPour(colorId);
-        recordPour();
+        playPourFeedback(colorId);
 
         setAnimatingPour({
           fromId: selectedTube,
@@ -213,10 +223,8 @@ export default function GameScreen() {
         return;
       }
       // 레이아웃 미측정 시 즉시 커밋(폴백)
-      Haptic.medium();
+      playPourFeedback(result.move.colorId);
       selectTube(id);
-      SoundManager.playPour(result.move.colorId);
-      recordPour();
       return;
     }
 
@@ -228,6 +236,7 @@ export default function GameScreen() {
     if (animatingPour) return;
     SoundManager.play('button_tap');
     Haptic.light();
+    pourChain.current = null;
     undo();
   };
 
@@ -236,6 +245,7 @@ export default function GameScreen() {
     SoundManager.play('button_tap');
     Haptic.light();
     prevCompleted.current = new Set();
+    pourChain.current = null;
     reset();
   };
 
@@ -254,6 +264,7 @@ export default function GameScreen() {
       startNewGame('zen');
     }
     prevCompleted.current = new Set();
+    pourChain.current = null;
     setAnimatingPour(null);
   }, [mode, userLevel, startNewGame]);
 

@@ -39,6 +39,11 @@ function isAsmrKey(key: SoundKey): boolean {
   return ASMR_SOUND_KEYS.includes(key);
 }
 
+/** 붓기 음계 수 (pour_0 ~ pour_11, C4~G5 — docs/02-audio.md) */
+const POUR_NOTE_COUNT = 12;
+/** 같은 색 연속 붓기 시 음정 상승 최대 단계 (docs/02-audio.md) */
+const POUR_CHAIN_SHIFT_MAX = 2;
+
 function effectVolume(): number {
   const { masterVolume, sfxVolume } = useSettingsStore.getState();
   return masterVolume * sfxVolume;
@@ -151,9 +156,15 @@ class SoundManagerClass {
     );
   }
 
-  async playPour(_colorId: number): Promise<void> {
-    // Play the real watery ASMR pour sound instead of standard notes
-    await this.play('water_pour');
+  /**
+   * 붓기 효과음. 색상 ID를 12음 실로폰 음계로 매핑하고,
+   * 같은 색을 연속으로 부으면(chainCount) 음이 +1~+2 단계 올라간다.
+   * 자산 자체에 마림바 배음 + 물 텍스처가 합성되어 있다 (T102).
+   */
+  async playPour(colorId: number, chainCount = 0): Promise<void> {
+    const shift = Math.min(chainCount, POUR_CHAIN_SHIFT_MAX);
+    const note = (colorId + shift) % POUR_NOTE_COUNT;
+    await this.play(`pour_${note}` as SoundKey);
   }
 
   async playBGM(track: 'zen' | 'classic'): Promise<void> {
