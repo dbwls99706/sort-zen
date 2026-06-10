@@ -1,6 +1,6 @@
 import { Tube } from '../types';
 import { pour, isCleared } from '../rules';
-import { findSolution, isSolvable } from '../solver';
+import { findSolution, isSolvable, hasLegalMove } from '../solver';
 import { generateLevel } from '../generator';
 import { getDifficulty } from '../difficulty';
 
@@ -103,5 +103,40 @@ describe('solver', () => {
     const sol = findSolution(tubes);
     expect(sol).not.toBeNull();
     expect(isCleared(replay(tubes, sol))).toBe(true);
+  });
+});
+
+describe('hasLegalMove (막힘 감지 T142)', () => {
+  test('부을 수 있는 곳이 있으면 true', () => {
+    const tubes: Tube[] = [
+      { id: 0, capacity: 4, layers: [0, 1] },
+      { id: 1, capacity: 4, layers: [] },
+    ];
+    expect(hasLegalMove(tubes)).toBe(true);
+  });
+
+  test('서로 막힌 보드는 false', () => {
+    const tubes: Tube[] = [
+      { id: 0, capacity: 2, layers: [0, 1] },
+      { id: 1, capacity: 2, layers: [1, 0] },
+    ];
+    expect(hasLegalMove(tubes)).toBe(false);
+  });
+
+  test('남은 수가 단색→빈 튜브 재배치뿐이면 막힘으로 본다', () => {
+    // 색 0이 2칸뿐이라 어떤 이동으로도 완성 불가 → 진척 없는 이동만 남음
+    const tubes: Tube[] = [
+      { id: 0, capacity: 4, layers: [0, 0] },
+      { id: 1, capacity: 4, layers: [] },
+    ];
+    expect(hasLegalMove(tubes)).toBe(false);
+  });
+
+  test('클리어된 보드는 false (이동 불필요)', () => {
+    const tubes: Tube[] = [
+      { id: 0, capacity: 2, layers: [0, 0] },
+      { id: 1, capacity: 2, layers: [] },
+    ];
+    expect(hasLegalMove(tubes)).toBe(false);
   });
 });

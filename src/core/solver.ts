@@ -106,6 +106,15 @@ export function findSolution(
 }
 
 /**
+ * 진척 있는 합법 수가 하나라도 있는지 — 막힘 감지(T142)용.
+ * 단색 튜브→빈 튜브 재배치는 진척 없는 이동이라 합법 수로 치지 않는다
+ * (그런 수만 남은 보드는 모든 튜브가 단색이면서 합칠 수 없는 상태 = 풀 수 없음).
+ */
+export function hasLegalMove(tubes: Tube[]): boolean {
+  return legalMoves(tubes).length > 0;
+}
+
+/**
  * 보드가 풀 수 있는 상태인지 여부. 생성기 검증(T141)·막힘 감지(T142)용.
  */
 export function isSolvable(

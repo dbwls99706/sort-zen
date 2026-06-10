@@ -79,5 +79,8 @@
   "ach_desc_coins": "Hold {n} coins",
   "daily_clearLevels": "Clear {n} levels today",
   "daily_pourLiquid": "Pour {n} times today",
-  "daily_clearUnderMoves": "Clear {n} levels under {m} moves"
+  "daily_clearUnderMoves": "Clear {n} levels under {m} moves",
+  "stuck_title": "Stuck!",
+  "stuck_desc": "No more possible moves.\nUndo or start a fresh board.",
+  "new_board": "New Board"
 }

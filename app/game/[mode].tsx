@@ -24,6 +24,8 @@ import { SoundManager } from '../../src/audio/SoundManager';
 import { Haptic } from '../../src/utils/haptics';
 import { AdManager } from '../../src/ads/AdManager';
 import { pour, isTubeComplete } from '../../src/core/rules';
+import { hasLegalMove } from '../../src/core/solver';
+import { StuckModal } from '../../src/components/StuckModal';
 import {
   PourAnimation,
   POUR_DURATION_MS,
@@ -79,6 +81,16 @@ export default function GameScreen() {
   const pourChain = useRef<{ colorId: number; count: number } | null>(null);
   const stopFlowHaptic = useRef<(() => void) | null>(null);
   const [animatingPour, setAnimatingPour] = useState<AnimatingPour | null>(null);
+
+  // 막힘 감지 (T142): 합법 수 0 && 미완성이면 탈출 경로 안내
+  const stuck = useMemo(
+    () =>
+      tubes.length > 0 &&
+      !cleared &&
+      !animatingPour &&
+      !hasLegalMove(tubes),
+    [tubes, cleared, animatingPour],
+  );
 
   // 튜브 수/화면에 맞춘 반응형 스케일 (오버플로 방지)
   const scale = useMemo(
@@ -341,6 +353,13 @@ export default function GameScreen() {
           />
         )}
       </View>
+
+      <StuckModal
+        visible={stuck}
+        canUndo={moves.length > 0}
+        onUndo={handleUndo}
+        onNewBoard={handleReset}
+      />
 
       <ClearModal
         visible={cleared}

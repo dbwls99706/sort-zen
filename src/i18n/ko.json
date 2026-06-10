@@ -79,5 +79,8 @@
   "ach_desc_coins": "코인 {n}개 보유",
   "daily_clearLevels": "오늘 {n}판 클리어하기",
   "daily_pourLiquid": "오늘 {n}번 붓기",
-  "daily_clearUnderMoves": "{m}번 이내로 {n}판 클리어"
+  "daily_clearUnderMoves": "{m}번 이내로 {n}판 클리어",
+  "stuck_title": "막혔어요!",
+  "stuck_desc": "더 이상 부을 수 있는 곳이 없어요.\n되돌리거나 새 보드로 다시 시작하세요.",
+  "new_board": "새 보드"
 }
