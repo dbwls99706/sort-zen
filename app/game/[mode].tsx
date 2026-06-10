@@ -9,15 +9,14 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useGameStore } from '../../src/store/gameStore';
 import { useUserStore } from '../../src/store/userStore';
+import { useProgressStore } from '../../src/store/progressStore';
 import { useTheme } from '../../src/components/ThemeProvider';
 import {
   TubeComponent,
   TUBE_CONTAINER_TOP_GAP,
-  TUBE_SELECTED_LIFT,
 } from '../../src/components/Tube';
 import { TUBE_WIDTH, TUBE_HEIGHT } from '../../src/components/tube/dimensions';
 import { computeTubeScale } from '../../src/utils/layout';
-import { PourStream } from '../../src/components/PourAnimation';
 import { Background } from '../../src/components/Background';
 import { HUD } from '../../src/components/HUD';
 import { ClearModal } from '../../src/components/ClearModal';
@@ -25,19 +24,25 @@ import { SoundManager } from '../../src/audio/SoundManager';
 import { Haptic } from '../../src/utils/haptics';
 import { AdManager } from '../../src/ads/AdManager';
 import { pour, isTubeComplete } from '../../src/core/rules';
+import { PourAnimation } from '../../src/components/PourAnimation';
 
 type GameMode = 'classic' | 'zen';
 
 type TubeLayout = { x: number; y: number; width: number; height: number };
 
-type PourAnim = {
+type AnimatingPour = {
+  fromId: number;
+  toId: number;
+  color: string;
+  colorId: number;
   fromX: number;
   fromY: number;
   toX: number;
   toY: number;
-  color: string;
-  toId: number;
-  colorId: number;
+  translationX: number;
+  translationY: number;
+  direction: 'left' | 'right';
+  onComplete: () => void;
 };
 
 export default function GameScreen() {
@@ -46,18 +51,6 @@ export default function GameScreen() {
   const router = useRouter();
   const theme = useTheme();
   const { width: winW, height: winH } = useWindowDimensions();
-
-  const tubeLayouts = useRef<Record<number, TubeLayout>>({});
-  const prevCompleted = useRef<Set<number>>(new Set());
-  const mounted = useRef(true);
-  const [pourAnim, setPourAnim] = useState<PourAnim | null>(null);
-
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-    };
-  }, []);
 
   const tubes = useGameStore((s) => s.tubes);
   const moves = useGameStore((s) => s.moves);
@@ -74,12 +67,26 @@ export default function GameScreen() {
   const incrementLevel = useUserStore((s) => s.incrementLevel);
   const incrementCleared = useUserStore((s) => s.incrementCleared);
   const addCoins = useUserStore((s) => s.addCoins);
+  const recordPour = useProgressStore((s) => s.recordPour);
+  const recordClear = useProgressStore((s) => s.recordClear);
+
+  const tubeLayouts = useRef<Record<number, TubeLayout>>({});
+  const prevCompleted = useRef<Set<number>>(new Set());
+  const mounted = useRef(true);
+  const [animatingPour, setAnimatingPour] = useState<AnimatingPour | null>(null);
 
   // 튜브 수/화면에 맞춘 반응형 스케일 (오버플로 방지)
   const scale = useMemo(
     () => computeTubeScale(tubes.length, winW - 32, winH * 0.6),
     [tubes.length, winW, winH],
   );
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     const lvl = mode === 'classic' ? userLevel : undefined;
@@ -97,13 +104,14 @@ export default function GameScreen() {
     };
   }, [mode, userLevel, startNewGame]);
 
-  // 클리어 감지 → 보상 + 사운드
+  // 클리어 감지 -> 보상 + 사운드
   useEffect(() => {
     if (cleared) {
       SoundManager.play('level_clear');
       Haptic.success();
       incrementCleared();
       addCoins(10);
+      recordClear({ mode, moveCount: moves.length });
       SoundManager.play('coin');
 
       if (mode === 'classic') {
@@ -111,7 +119,7 @@ export default function GameScreen() {
         AdManager.maybeShowInterstitial(mode);
       }
     }
-  }, [cleared, mode, incrementCleared, addCoins, incrementLevel]);
+  }, [cleared, mode, incrementCleared, addCoins, incrementLevel, recordClear, moves.length]);
 
   // 튜브 단색 완성 감지 → 미세 보상 사운드 + 햅틱 (클리어 순간은 level_clear에 양보)
   useEffect(() => {
@@ -134,16 +142,14 @@ export default function GameScreen() {
     tubeLayouts.current[id] = e.nativeEvent.layout;
   };
 
-  // 붓기 스트림 착지 → store 커밋 + 사운드 동기화 (언마운트 후 콜백이면 무시)
   const handlePourLand = useCallback(() => {
-    if (!pourAnim || !mounted.current) return;
-    selectTube(pourAnim.toId); // selectedTube(=소스)가 살아있으므로 여기서 실제 붓기 실행
-    SoundManager.playPour(pourAnim.colorId);
-    setPourAnim(null);
-  }, [pourAnim, selectTube]);
+    if (!animatingPour || !mounted.current) return;
+    selectTube(animatingPour.toId);
+    setAnimatingPour(null);
+  }, [animatingPour, selectTube]);
 
   const handleTubePress = (id: number) => {
-    if (cleared || pourAnim) return;
+    if (cleared || animatingPour) return;
 
     if (selectedTube === null) {
       const tube = tubes.find((t) => t.id === id);
@@ -169,18 +175,40 @@ export default function GameScreen() {
     if (result) {
       const from = tubeLayouts.current[selectedTube];
       const to = tubeLayouts.current[id];
+      
       if (from && to) {
         const colorId = result.move.colorId;
+        const color = theme.colors[colorId % theme.colors.length];
+        const direction = to.x > from.x ? 'right' : 'left';
+
+        // Floating translation coordinates (place source mouth above target mouth)
+        // Scaled inverse to match the Transform Scale of TubeComponent
+        const translationX = (to.x - from.x) / scale + (direction === 'right' ? -15 : 15);
+        const translationY = (to.y - from.y) / scale - 120;
+
+        // Droplet stream coordinates relative to boardContainer
+        const fromX = to.x + to.width / 2 + (direction === 'right' ? -15 : 15) * scale;
+        const fromY = to.y - 30 * scale;
+        const toX = to.x + to.width / 2;
+        const toY = to.y + 10 * scale;
+
         Haptic.medium();
-        setPourAnim({
-          fromX: from.x + from.width / 2,
-          fromY:
-            from.y + (TUBE_CONTAINER_TOP_GAP - TUBE_SELECTED_LIFT) * scale,
-          toX: to.x + to.width / 2,
-          toY: to.y + TUBE_CONTAINER_TOP_GAP * scale,
-          color: theme.colors[colorId % theme.colors.length],
+        SoundManager.playPour(colorId);
+        recordPour();
+
+        setAnimatingPour({
+          fromId: selectedTube,
           toId: id,
+          color,
           colorId,
+          fromX,
+          fromY,
+          toX,
+          toY,
+          translationX,
+          translationY,
+          direction,
+          onComplete: handlePourLand
         });
         return;
       }
@@ -188,6 +216,7 @@ export default function GameScreen() {
       Haptic.medium();
       selectTube(id);
       SoundManager.playPour(result.move.colorId);
+      recordPour();
       return;
     }
 
@@ -196,14 +225,14 @@ export default function GameScreen() {
   };
 
   const handleUndo = () => {
-    if (pourAnim) return;
+    if (animatingPour) return;
     SoundManager.play('button_tap');
     Haptic.light();
     undo();
   };
 
   const handleReset = () => {
-    if (pourAnim) return;
+    if (animatingPour) return;
     SoundManager.play('button_tap');
     Haptic.light();
     prevCompleted.current = new Set();
@@ -225,7 +254,7 @@ export default function GameScreen() {
       startNewGame('zen');
     }
     prevCompleted.current = new Set();
-    setPourAnim(null);
+    setAnimatingPour(null);
   }, [mode, userLevel, startNewGame]);
 
   const handleMenu = useCallback(() => {
@@ -249,38 +278,45 @@ export default function GameScreen() {
         onPause={handlePause}
       />
 
-      <View style={styles.tubeGrid}>
-        {tubes.map((tube) => (
-          <View
-            key={tube.id}
-            onLayout={handleTubeLayout(tube.id)}
-            style={{
-              width: TUBE_WIDTH * scale,
-              height: (TUBE_HEIGHT + TUBE_CONTAINER_TOP_GAP) * scale,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <View style={{ transform: [{ scale }] }}>
-              <TubeComponent
-                tube={tube}
-                selected={selectedTube === tube.id}
-                completed={isTubeComplete(tube)}
-                onPress={() => handleTubePress(tube.id)}
-              />
-            </View>
-          </View>
-        ))}
+      <View style={styles.boardContainer}>
+        <View style={styles.tubeGrid}>
+          {tubes.map((tube) => {
+            const isFrom = animatingPour?.fromId === tube.id;
+            return (
+              <View
+                key={tube.id}
+                onLayout={handleTubeLayout(tube.id)}
+                style={{
+                  width: TUBE_WIDTH * scale,
+                  height: (TUBE_HEIGHT + TUBE_CONTAINER_TOP_GAP) * scale,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <View style={{ transform: [{ scale }] }}>
+                  <TubeComponent
+                    tube={tube}
+                    selected={selectedTube === tube.id}
+                    completed={isTubeComplete(tube)}
+                    onPress={() => handleTubePress(tube.id)}
+                    tiltAngle={isFrom ? (animatingPour.direction === 'right' ? 70 : -70) : 0}
+                    translationX={isFrom ? animatingPour.translationX : 0}
+                    translationY={isFrom ? animatingPour.translationY : 0}
+                  />
+                </View>
+              </View>
+            );
+          })}
+        </View>
 
-        {pourAnim && (
-          <PourStream
-            fromX={pourAnim.fromX}
-            fromY={pourAnim.fromY}
-            toX={pourAnim.toX}
-            toY={pourAnim.toY}
-            color={pourAnim.color}
-            scale={scale}
-            onComplete={handlePourLand}
+        {animatingPour && (
+          <PourAnimation
+            fromX={animatingPour.fromX}
+            fromY={animatingPour.fromY}
+            toX={animatingPour.toX}
+            toY={animatingPour.toY}
+            color={animatingPour.color}
+            onComplete={animatingPour.onComplete}
           />
         )}
       </View>
@@ -301,14 +337,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  tubeGrid: {
+  boardContainer: {
     flex: 1,
+    position: 'relative',
+    justifyContent: 'center',
+  },
+  tubeGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
     alignItems: 'center',
     gap: 12,
-    // 패딩을 두지 않는다: onLayout(border-box)와 PourStream 오버레이(absoluteFill)의
-    // 좌표 원점을 일치시키기 위함. 좌우 여백은 computeTubeScale(winW-32)+중앙정렬로 확보.
   },
 });

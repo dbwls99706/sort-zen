@@ -39,7 +39,7 @@ export function HUD({
 
       <View style={styles.center}>
         <Text style={[styles.coinText, { color: theme.accent }]}>
-          {coins}
+          🪙 {coins}
         </Text>
       </View>
 

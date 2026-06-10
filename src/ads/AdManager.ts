@@ -1,4 +1,5 @@
-import {
+import mobileAds, {
+  AdsConsent,
   InterstitialAd,
   RewardedAd,
   RewardedAdEventType,
@@ -15,7 +16,16 @@ class AdManagerClass {
   private clearCount = 0;
   private appStartedAt = Date.now();
 
-  init(): void {
+  async init(): Promise<void> {
+    try {
+      const consentInfo = await AdsConsent.requestInfoUpdate();
+      if (consentInfo.isConsentFormAvailable) {
+        await AdsConsent.showForm();
+      }
+      await mobileAds().initialize();
+    } catch (e) {
+      console.warn('Ads init failed', e);
+    }
     this.loadInterstitial();
     this.loadRewarded();
   }

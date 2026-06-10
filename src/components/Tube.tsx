@@ -45,6 +45,9 @@ type TubeProps = {
   selected: boolean;
   completed: boolean;
   onPress: () => void;
+  tiltAngle?: number;
+  translationX?: number;
+  translationY?: number;
 };
 
 export function TubeComponent({
@@ -52,6 +55,9 @@ export function TubeComponent({
   selected,
   completed,
   onPress,
+  tiltAngle = 0,
+  translationX = 0,
+  translationY = 0,
 }: TubeProps) {
   const theme = useTheme();
 
@@ -68,17 +74,32 @@ export function TubeComponent({
     wasCompleted.current = completed;
   }, [completed, pop]);
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [
-      {
-        translateY: withSpring(selected ? SELECTED_OFFSET : 0, {
-          damping: 15,
-          stiffness: 200,
-        }),
-      },
-      { scale: pop.value },
-    ],
-  }));
+  const animatedStyle = useAnimatedStyle(() => {
+    const defaultY = selected ? SELECTED_OFFSET : 0;
+    return {
+      transform: [
+        {
+          translateX: withSpring(translationX, {
+            damping: 18,
+            stiffness: 150,
+          }),
+        },
+        {
+          translateY: withSpring(defaultY + translationY, {
+            damping: 18,
+            stiffness: 150,
+          }),
+        },
+        {
+          rotate: `${withSpring(tiltAngle, {
+            damping: 18,
+            stiffness: 150,
+          })}deg`,
+        },
+        { scale: pop.value },
+      ],
+    };
+  });
 
   const wavePhase = useSharedValue(0);
   React.useEffect(() => {

@@ -1,31 +1,26 @@
 import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import mobileAds, { AdsConsent } from 'react-native-google-mobile-ads';
 import { ThemeProvider } from '../src/components/ThemeProvider';
 import { AdManager } from '../src/ads/AdManager';
 import { SoundManager } from '../src/audio/SoundManager';
 import { SubscriptionManager } from '../src/iap/SubscriptionManager';
+import { useUserStore } from '../src/store/userStore';
+
+const PLAY_TIME_TICK_MS = 10000;
 
 export default function RootLayout() {
   useEffect(() => {
-    (async () => {
-      try {
-        const consentInfo = await AdsConsent.requestInfoUpdate();
-        if (consentInfo.isConsentFormAvailable) {
-          await AdsConsent.showForm();
-        }
-        await mobileAds().initialize();
-        AdManager.init();
-      } catch (e) {
-        console.warn('Ads init failed', e);
-      }
-    })();
-
+    AdManager.init();
     SubscriptionManager.init();
     SoundManager.preload();
 
+    const interval = setInterval(() => {
+      useUserStore.getState().addPlayTime(PLAY_TIME_TICK_MS / 1000);
+    }, PLAY_TIME_TICK_MS);
+
     return () => {
+      clearInterval(interval);
       SubscriptionManager.destroy();
       SoundManager.unloadAll();
     };

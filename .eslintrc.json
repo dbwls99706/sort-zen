@@ -20,7 +20,13 @@
   "rules": {
     "react/react-in-jsx-scope": "off",
     "@typescript-eslint/no-explicit-any": "error",
-    "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_" }]
+    "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
+    // React Compiler 실험 규칙(react-hooks v7 recommended에 포함)은 react-native-reanimated의
+    // 가변 API(sharedValue.value = x)·PanResponder 패턴과 근본적으로 충돌해 거짓 양성을 낸다.
+    // 본 프로젝트는 React Compiler를 쓰지 않으므로 비활성화한다. rules-of-hooks/exhaustive-deps는 유지.
+    "react-hooks/immutability": "off",
+    "react-hooks/purity": "off",
+    "react-hooks/refs": "off"
   },
   "ignorePatterns": ["node_modules/", "dist/", ".expo/", "ios/", "android/"]
 }

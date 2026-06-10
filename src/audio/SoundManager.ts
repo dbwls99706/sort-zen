@@ -19,7 +19,25 @@ type SoundKey =
   | 'complete_tube'
   | 'level_clear'
   | 'coin'
-  | 'button_tap';
+  | 'button_tap'
+  | 'slime'
+  | 'water_pour'
+  | 'shaving_cream'
+  | 'handcream'
+  | 'sponge';
+
+// ASMR 감각 방 전용 사운드. 용량이 커 시작 시 프리로드하지 않고 최초 재생 때 지연 로드한다.
+const ASMR_SOUND_KEYS: readonly SoundKey[] = [
+  'slime',
+  'water_pour',
+  'shaving_cream',
+  'handcream',
+  'sponge',
+];
+
+function isAsmrKey(key: SoundKey): boolean {
+  return ASMR_SOUND_KEYS.includes(key);
+}
 
 function effectVolume(): number {
   const { masterVolume, sfxVolume } = useSettingsStore.getState();
@@ -51,6 +69,11 @@ const SOUND_ASSETS: Record<SoundKey, number> = {
   level_clear: require('./assets/level_clear.wav'),
   coin: require('./assets/coin.wav'),
   button_tap: require('./assets/button_tap.wav'),
+  slime: require('./assets/slime.mp3'),
+  water_pour: require('./assets/water_pour.mp3'),
+  shaving_cream: require('./assets/shaving_cream.mp3'),
+  handcream: require('./assets/handcream.mp3'),
+  sponge: require('./assets/sponge.mp3'),
 };
 
 const BGM_ASSETS = {
@@ -68,12 +91,16 @@ class SoundManagerClass {
     if (this.loaded) return;
 
     await Audio.setAudioModeAsync({
-      playsInSilentModeIOS: false,
+      playsInSilentModeIOS: true,
       shouldDuckAndroid: true,
       staysActiveInBackground: false,
     });
 
     for (const [key, asset] of Object.entries(SOUND_ASSETS)) {
+      // 큰 ASMR 자산은 프리로드에서 제외해 시작을 가볍게 유지
+      if (isAsmrKey(key as SoundKey)) {
+        continue;
+      }
       const { sound } = await Audio.Sound.createAsync(asset, {
         volume: effectVolume(),
       });
@@ -85,12 +112,30 @@ class SoundManagerClass {
 
   async play(key: SoundKey): Promise<void> {
     if (!useSettingsStore.getState().soundEnabled) return;
-    const sound = this.sounds.get(key);
-    if (!sound) return;
+
+    let sound = this.sounds.get(key);
+    if (!sound) {
+      if (isAsmrKey(key)) {
+        try {
+          const asset = SOUND_ASSETS[key];
+          const { sound: newSound } = await Audio.Sound.createAsync(asset, {
+            volume: effectVolume(),
+          });
+          this.sounds.set(key, newSound);
+          sound = newSound;
+        } catch (e) {
+          console.warn(`Failed to load sound on demand: ${key}`, e);
+          return;
+        }
+      } else {
+        return;
+      }
+    }
+
     try {
       await sound.replayAsync();
     } catch {
-      /* 사운드 재생 실패 무시 */
+      /* ignore */
     }
   }
 
@@ -106,26 +151,35 @@ class SoundManagerClass {
     );
   }
 
-  async playPour(colorId: number): Promise<void> {
-    const key = `pour_${colorId % 12}` as SoundKey;
-    await this.play(key);
+  async playPour(_colorId: number): Promise<void> {
+    // Play the real watery ASMR pour sound instead of standard notes
+    await this.play('water_pour');
   }
 
   async playBGM(track: 'zen' | 'classic'): Promise<void> {
     if (!useSettingsStore.getState().bgmEnabled) return;
 
     if (this.bgm) {
-      await this.bgm.unloadAsync();
+      const oldBgm = this.bgm;
       this.bgm = null;
+      try {
+        await oldBgm.unloadAsync();
+      } catch {
+        // ignore
+      }
     }
 
-    const asset = BGM_ASSETS[track];
-    const { sound } = await Audio.Sound.createAsync(asset, {
-      isLooping: true,
-      volume: bgmVolume(),
-    });
-    this.bgm = sound;
-    await sound.playAsync();
+    try {
+      const asset = BGM_ASSETS[track];
+      const { sound } = await Audio.Sound.createAsync(asset, {
+        isLooping: true,
+        volume: bgmVolume(),
+      });
+      this.bgm = sound;
+      await sound.playAsync();
+    } catch (e) {
+      console.warn('Failed to play BGM', e);
+    }
   }
 
   /** 설정에서 BGM 볼륨을 바꿨을 때 재생 중인 트랙에 즉시 반영 */
@@ -139,16 +193,29 @@ class SoundManagerClass {
   }
 
   async stopBGM(): Promise<void> {
-    if (this.bgm) {
-      await this.bgm.stopAsync();
-      await this.bgm.unloadAsync();
+    const sound = this.bgm;
+    if (sound) {
       this.bgm = null;
+      try {
+        await sound.stopAsync();
+      } catch {
+        // ignore
+      }
+      try {
+        await sound.unloadAsync();
+      } catch {
+        // ignore
+      }
     }
   }
 
   async unloadAll(): Promise<void> {
     for (const s of this.sounds.values()) {
-      await s.unloadAsync();
+      try {
+        await s.unloadAsync();
+      } catch {
+        // ignore
+      }
     }
     this.sounds.clear();
     await this.stopBGM();

@@ -43,22 +43,22 @@ export default function StatsScreen() {
       <View style={styles.grid}>
         <StatCard
           label={t('level')}
-          value={String(level)}
+          value={`⭐ ${level}`}
           theme={theme}
         />
         <StatCard
           label={t('cleared')}
-          value={String(totalCleared)}
+          value={`🏆 ${totalCleared}`}
           theme={theme}
         />
         <StatCard
           label={t('play_time')}
-          value={formatTime(totalPlayTime)}
+          value={`⏱️ ${formatTime(totalPlayTime)}`}
           theme={theme}
         />
         <StatCard
           label={t('coins')}
-          value={String(coins)}
+          value={`🪙 ${coins}`}
           theme={theme}
         />
       </View>
