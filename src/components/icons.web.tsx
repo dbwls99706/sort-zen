@@ -67,6 +67,29 @@ export function ResetIcon({ size, color }: IconProps) {
   );
 }
 
+/** 힌트 — 전구 */
+export function HintIcon({ size, color }: IconProps) {
+  return (
+    <IconSvg size={size}>
+      <circle
+        cx={12}
+        cy={8.5}
+        r={5.5}
+        fill="none"
+        stroke={color}
+        strokeWidth={STROKE}
+      />
+      <path
+        d="M10 13.2 L10 15.5 M14 13.2 L14 15.5 M9.6 17.5 L14.4 17.5 M10.4 20 L13.6 20"
+        fill="none"
+        stroke={color}
+        strokeWidth={STROKE}
+        strokeLinecap="round"
+      />
+    </IconSvg>
+  );
+}
+
 /** 일시정지 — 둥근 막대 2개 */
 export function PauseIcon({ size, color }: IconProps) {
   return (

@@ -2,13 +2,14 @@ import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useTheme } from './ThemeProvider';
 import { useTranslation } from '../i18n';
-import { UndoIcon, ResetIcon, PauseIcon } from './icons';
+import { UndoIcon, ResetIcon, PauseIcon, HintIcon } from './icons';
 
 type HUDProps = {
   level: number;
   coins: number;
   mode: 'classic' | 'zen';
   moveCount: number;
+  onHint: () => void;
   onUndo: () => void;
   onReset: () => void;
   onPause: () => void;
@@ -19,6 +20,7 @@ export function HUD({
   coins,
   mode,
   moveCount,
+  onHint,
   onUndo,
   onReset,
   onPause,
@@ -44,6 +46,9 @@ export function HUD({
       </View>
 
       <View style={styles.right}>
+        <Pressable onPress={onHint} style={styles.button}>
+          <HintIcon color={theme.text} />
+        </Pressable>
         <Pressable onPress={onUndo} style={styles.button}>
           <UndoIcon color={theme.text} />
         </Pressable>

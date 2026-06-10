@@ -18,6 +18,7 @@ import Animated, {
   useSharedValue,
   useDerivedValue,
   withRepeat,
+  cancelAnimation,
   Easing,
 } from 'react-native-reanimated';
 import { Pressable, StyleSheet } from 'react-native';
@@ -48,6 +49,7 @@ type TubeProps = {
   tube: TubeType;
   selected: boolean;
   completed: boolean;
+  hinted?: boolean;
   onPress: () => void;
   tiltAngle?: number;
   translationX?: number;
@@ -58,6 +60,7 @@ export function TubeComponent({
   tube,
   selected,
   completed,
+  hinted = false,
   onPress,
   tiltAngle = 0,
   translationX = 0,
@@ -127,6 +130,24 @@ export function TubeComponent({
     }
     prevLayerCount.current = tube.layers.length;
   }, [tube.layers.length, surge]);
+
+  // 힌트 하이라이트 — 외곽선이 부드럽게 맥동
+  const hintPulse = useSharedValue(0);
+  React.useEffect(() => {
+    if (hinted) {
+      hintPulse.value = withRepeat(
+        withTiming(1, { duration: 600, easing: Easing.inOut(Easing.quad) }),
+        -1,
+        true,
+      );
+    } else {
+      cancelAnimation(hintPulse);
+      hintPulse.value = 0;
+    }
+  }, [hinted, hintPulse]);
+  const hintOpacity = useDerivedValue(
+    () => 0.45 + hintPulse.value * 0.55,
+  );
 
   const clipPath = useMemo(() => makeClipPath(), []);
   const outlinePath = useMemo(() => makeOutlinePath(), []);
@@ -245,6 +266,20 @@ export function TubeComponent({
               color="rgba(255,255,255,0.18)"
             />
           </Group>
+
+          {/* 힌트 글로우 (다음 수 하이라이트) */}
+          {hinted && (
+            <Path
+              path={outlinePath}
+              style="stroke"
+              strokeWidth={3.5}
+              color={theme.accent}
+              opacity={hintOpacity}
+              strokeCap="round"
+            >
+              <BlurMask blur={6} style="normal" />
+            </Path>
+          )}
 
           {/* 완성 글로우 (단색으로 가득 찬 튜브) */}
           {completed && (

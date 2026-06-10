@@ -87,6 +87,47 @@ export function ResetIcon({ size, color }: IconProps) {
   );
 }
 
+/** 힌트 — 전구 */
+export function HintIcon({ size, color }: IconProps) {
+  const bulb = useMemo(() => {
+    const p = Skia.Path.Make();
+    // 전구 머리(원호) + 목으로 이어지는 윤곽
+    p.addArc({ x: 6.5, y: 3, width: 11, height: 11 }, 130, 280);
+    p.moveTo(10, 13.2);
+    p.lineTo(10, 15.5);
+    p.moveTo(14, 13.2);
+    p.lineTo(14, 15.5);
+    return p;
+  }, []);
+  const base = useMemo(() => {
+    const p = Skia.Path.Make();
+    p.moveTo(9.6, 17.5);
+    p.lineTo(14.4, 17.5);
+    p.moveTo(10.4, 20);
+    p.lineTo(13.6, 20);
+    return p;
+  }, []);
+  return (
+    <IconCanvas size={size}>
+      <Path
+        path={bulb}
+        style="stroke"
+        strokeWidth={STROKE}
+        strokeCap="round"
+        strokeJoin="round"
+        color={color}
+      />
+      <Path
+        path={base}
+        style="stroke"
+        strokeWidth={STROKE}
+        strokeCap="round"
+        color={color}
+      />
+    </IconCanvas>
+  );
+}
+
 /** 일시정지 — 둥근 막대 2개 */
 export function PauseIcon({ size, color }: IconProps) {
   return (

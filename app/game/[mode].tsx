@@ -24,7 +24,8 @@ import { SoundManager } from '../../src/audio/SoundManager';
 import { Haptic } from '../../src/utils/haptics';
 import { AdManager } from '../../src/ads/AdManager';
 import { pour, isTubeComplete } from '../../src/core/rules';
-import { hasLegalMove } from '../../src/core/solver';
+import { hasLegalMove, findSolution } from '../../src/core/solver';
+import { HINT_COST } from '../../src/core/constants';
 import { StuckModal } from '../../src/components/StuckModal';
 import {
   PourAnimation,
@@ -69,6 +70,7 @@ export default function GameScreen() {
 
   const coins = useUserStore((s) => s.coins);
   const userLevel = useUserStore((s) => s.level);
+  const spendCoins = useUserStore((s) => s.spendCoins);
   const incrementLevel = useUserStore((s) => s.incrementLevel);
   const incrementCleared = useUserStore((s) => s.incrementCleared);
   const addCoins = useUserStore((s) => s.addCoins);
@@ -81,6 +83,8 @@ export default function GameScreen() {
   const pourChain = useRef<{ colorId: number; count: number } | null>(null);
   const stopFlowHaptic = useRef<(() => void) | null>(null);
   const [animatingPour, setAnimatingPour] = useState<AnimatingPour | null>(null);
+  // 힌트는 보드를 바꾸는 모든 이벤트(붓기/되돌리기/새 보드)에서 해제한다
+  const [hint, setHint] = useState<{ from: number; to: number } | null>(null);
 
   // 막힘 감지 (T142): 합법 수 0 && 미완성이면 탈출 경로 안내
   const stuck = useMemo(
@@ -169,6 +173,7 @@ export default function GameScreen() {
     Haptic.medium();
     SoundManager.playPour(colorId, chain);
     recordPour();
+    setHint(null);
   };
 
   const handlePourLand = useCallback(() => {
@@ -254,11 +259,31 @@ export default function GameScreen() {
     selectTube(id);
   };
 
+  // 힌트 (T143): 솔버의 다음 1수를 하이라이트. 코인 부족 시 리워드 광고로 대체
+  const handleHint = () => {
+    if (cleared || animatingPour || hint) return;
+    SoundManager.play('button_tap');
+    Haptic.light();
+
+    const solution = findSolution(tubes);
+    if (!solution || solution.length === 0) return;
+    const next = { from: solution[0].from, to: solution[0].to };
+
+    if (spendCoins(HINT_COST)) {
+      setHint(next);
+      return;
+    }
+    AdManager.showRewarded(() => {
+      if (mounted.current) setHint(next);
+    });
+  };
+
   const handleUndo = () => {
     if (animatingPour) return;
     SoundManager.play('button_tap');
     Haptic.light();
     pourChain.current = null;
+    setHint(null);
     undo();
   };
 
@@ -268,6 +293,7 @@ export default function GameScreen() {
     Haptic.light();
     prevCompleted.current = new Set();
     pourChain.current = null;
+    setHint(null);
     reset();
   };
 
@@ -287,6 +313,7 @@ export default function GameScreen() {
     }
     prevCompleted.current = new Set();
     pourChain.current = null;
+    setHint(null);
     setAnimatingPour(null);
   }, [mode, userLevel, startNewGame]);
 
@@ -306,6 +333,7 @@ export default function GameScreen() {
         coins={coins}
         mode={mode}
         moveCount={moves.length}
+        onHint={handleHint}
         onUndo={handleUndo}
         onReset={handleReset}
         onPause={handlePause}
@@ -331,6 +359,7 @@ export default function GameScreen() {
                     tube={tube}
                     selected={selectedTube === tube.id}
                     completed={isTubeComplete(tube)}
+                    hinted={hint?.from === tube.id || hint?.to === tube.id}
                     onPress={() => handleTubePress(tube.id)}
                     tiltAngle={isFrom ? (animatingPour.direction === 'right' ? 70 : -70) : 0}
                     translationX={isFrom ? animatingPour.translationX : 0}

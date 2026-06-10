@@ -19,6 +19,7 @@ const SELECTED_OFFSET = -TUBE_SELECTED_LIFT;
 type TubeProps = {
   tube: TubeType;
   selected: boolean;
+  hinted?: boolean;
   onPress: () => void;
   tiltAngle?: number;
   translationX?: number;
@@ -28,6 +29,7 @@ type TubeProps = {
 export function TubeComponent({
   tube,
   selected,
+  hinted = false,
   onPress,
   tiltAngle = 0,
   translationX = 0,
@@ -71,7 +73,7 @@ export function TubeComponent({
           style={[
             styles.tubeBody,
             {
-              borderColor: theme.tubeOutline,
+              borderColor: hinted ? theme.accent : theme.tubeOutline,
               backgroundColor: theme.tubeBackground || 'transparent',
             },
           ]}
