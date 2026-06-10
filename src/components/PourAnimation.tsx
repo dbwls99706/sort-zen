@@ -8,7 +8,7 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 
-const POUR_DURATION_MS = 700;
+export const POUR_DURATION_MS = 700;
 const NUM_DROPLETS = 6;
 
 export type PourAnimationProps = {

@@ -24,7 +24,10 @@ import { SoundManager } from '../../src/audio/SoundManager';
 import { Haptic } from '../../src/utils/haptics';
 import { AdManager } from '../../src/ads/AdManager';
 import { pour, isTubeComplete } from '../../src/core/rules';
-import { PourAnimation } from '../../src/components/PourAnimation';
+import {
+  PourAnimation,
+  POUR_DURATION_MS,
+} from '../../src/components/PourAnimation';
 
 type GameMode = 'classic' | 'zen';
 
@@ -74,6 +77,7 @@ export default function GameScreen() {
   const prevCompleted = useRef<Set<number>>(new Set());
   const mounted = useRef(true);
   const pourChain = useRef<{ colorId: number; count: number } | null>(null);
+  const stopFlowHaptic = useRef<(() => void) | null>(null);
   const [animatingPour, setAnimatingPour] = useState<AnimatingPour | null>(null);
 
   // 튜브 수/화면에 맞춘 반응형 스케일 (오버플로 방지)
@@ -86,6 +90,7 @@ export default function GameScreen() {
     mounted.current = true;
     return () => {
       mounted.current = false;
+      stopFlowHaptic.current?.();
     };
   }, []);
 
@@ -155,6 +160,8 @@ export default function GameScreen() {
   };
 
   const handlePourLand = useCallback(() => {
+    stopFlowHaptic.current?.();
+    stopFlowHaptic.current = null;
     if (!animatingPour || !mounted.current) return;
     selectTube(animatingPour.toId);
     setAnimatingPour(null);
@@ -205,6 +212,8 @@ export default function GameScreen() {
         const toY = to.y + 10 * scale;
 
         playPourFeedback(colorId);
+        stopFlowHaptic.current?.();
+        stopFlowHaptic.current = Haptic.flow(POUR_DURATION_MS);
 
         setAnimatingPour({
           fromId: selectedTube,
@@ -228,7 +237,8 @@ export default function GameScreen() {
       return;
     }
 
-    // 부을 수 없으면 대상으로 선택 전환
+    // 부을 수 없으면 가벼운 피드백 후 대상으로 선택 전환 (docs/02-audio.md)
+    Haptic.light();
     selectTube(id);
   };
 
