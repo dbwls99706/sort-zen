@@ -159,11 +159,15 @@ class SoundManagerClass {
   /**
    * 붓기 효과음. 색상 ID를 12음 실로폰 음계로 매핑하고,
    * 같은 색을 연속으로 부으면(chainCount) 음이 +1~+2 단계 올라간다.
+   * 최고음에서는 클램프해 음이 아래로 꺾이지 않게 한다 (상승감 유지).
    * 자산 자체에 마림바 배음 + 물 텍스처가 합성되어 있다 (T102).
    */
   async playPour(colorId: number, chainCount = 0): Promise<void> {
     const shift = Math.min(chainCount, POUR_CHAIN_SHIFT_MAX);
-    const note = (colorId + shift) % POUR_NOTE_COUNT;
+    const note = Math.min(
+      (colorId % POUR_NOTE_COUNT) + shift,
+      POUR_NOTE_COUNT - 1,
+    );
     await this.play(`pour_${note}` as SoundKey);
   }
 
