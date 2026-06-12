@@ -126,3 +126,9 @@
 - [x] T150 붓기 12음 매핑 + chainCount 복원 — playPour가 water_pour 단일음으로 퇴화했던 것을 색상→음계 매핑 + 같은 색 연속 붓기 음정 +1~+2로 복원 (docs/02-audio.md 이행)
 - [x] T151 햅틱 디테일 — 부을 수 없는 탭 light 피드백 + Haptic.flow(붓는 동안 90ms 간격 light 틱, 착지/이탈 시 중단)
 - [x] T152 메니스커스 붓기 반응 — 액체량 변화 시 표면 파동 진폭 서지(+5px, 900ms 감쇠) + 기본 진폭 2.5→3px
+
+## Phase 18: 실기기 런타임 검증 후속 (Android 에뮬레이터 검증에서 발견)
+> Jest/웹에서 안 잡히고 네이티브 런타임에서만 드러난 치명 버그 2건. dev build로 실제 플레이 검증 중 발견.
+- [x] T153 Tube rotate transform 크래시 — `${withSpring(tiltAngle)}deg`가 애니메이션 객체를 "[object Object]deg"로 문자열화 → 네이티브 transform 파서가 NumberFormatException으로 크래시. useDerivedValue로 스프링값을 숫자로 분리 후 worklet에서 단위 결합. Tube.tsx/Tube.web.tsx 동일 수정 + TILT_SPRING 상수화
+- [x] T154 붓기 완료 hang — animatingPour에 저장한 onComplete가 animatingPour=null 시점 클로저라 착지 콜백이 가드에서 즉시 return → 첫 붓기 후 영구 정지(플레이 불가). 활성 붓기를 ref로 보관해 최신 toId를 읽고 콜백 deps를 [selectTube]로 안정화, onComplete 필드 제거
+- [ ] T155 (빌드) 네이티브 빌드 설정 영구화 — react-native-iap flavor 모호성(`missingDimensionStrategy "store","play"`) + Kotlin 버전 정렬(1.9.24, expo-modules-core Compose 컴파일러 미스매치)을 config plugin 또는 expo-build-properties로 영구화. 현재 android/는 gitignore라 prebuild/EAS 빌드 시 재발

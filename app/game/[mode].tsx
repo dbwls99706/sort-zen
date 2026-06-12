@@ -49,7 +49,6 @@ type AnimatingPour = {
   translationX: number;
   translationY: number;
   direction: 'left' | 'right';
-  onComplete: () => void;
 };
 
 export default function GameScreen() {
@@ -84,6 +83,9 @@ export default function GameScreen() {
   const tubeLayouts = useRef<Record<number, TubeLayout>>({});
   const prevCompleted = useRef<Set<number>>(new Set());
   const mounted = useRef(true);
+  // 붓기 착지 콜백이 최신 대상 튜브를 읽도록 활성 붓기를 ref로도 보관한다.
+  // (animatingPour를 클로저로 캡처하면 설정 시점의 null을 읽어 커밋이 멈춘다)
+  const activePour = useRef<AnimatingPour | null>(null);
   const pourChain = useRef<{ colorId: number; count: number } | null>(null);
   const stopFlowHaptic = useRef<(() => void) | null>(null);
   const [animatingPour, setAnimatingPour] = useState<AnimatingPour | null>(null);
@@ -190,10 +192,12 @@ export default function GameScreen() {
   const handlePourLand = useCallback(() => {
     stopFlowHaptic.current?.();
     stopFlowHaptic.current = null;
-    if (!animatingPour || !mounted.current) return;
-    selectTube(animatingPour.toId);
+    const ap = activePour.current;
+    activePour.current = null;
+    if (!ap || !mounted.current) return;
+    selectTube(ap.toId);
     setAnimatingPour(null);
-  }, [animatingPour, selectTube]);
+  }, [selectTube]);
 
   const handleTubePress = (id: number) => {
     if (cleared || animatingPour) return;
@@ -243,7 +247,7 @@ export default function GameScreen() {
         stopFlowHaptic.current?.();
         stopFlowHaptic.current = Haptic.flow(POUR_DURATION_MS);
 
-        setAnimatingPour({
+        const nextPour: AnimatingPour = {
           fromId: selectedTube,
           toId: id,
           color,
@@ -255,8 +259,9 @@ export default function GameScreen() {
           translationX,
           translationY,
           direction,
-          onComplete: handlePourLand
-        });
+        };
+        activePour.current = nextPour;
+        setAnimatingPour(nextPour);
         return;
       }
       // 레이아웃 미측정 시 즉시 커밋(폴백)
@@ -333,6 +338,7 @@ export default function GameScreen() {
     }
     prevCompleted.current = new Set();
     pourChain.current = null;
+    activePour.current = null;
     setHint(null);
     setAnimatingPour(null);
   }, [mode, userLevel, startNewGame]);
@@ -398,7 +404,7 @@ export default function GameScreen() {
             toX={animatingPour.toX}
             toY={animatingPour.toY}
             color={animatingPour.color}
-            onComplete={animatingPour.onComplete}
+            onComplete={handlePourLand}
           />
         )}
       </View>
