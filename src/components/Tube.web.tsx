@@ -1,6 +1,10 @@
 import React from 'react';
 import { View, Pressable, StyleSheet } from 'react-native';
-import Animated, { useAnimatedStyle, withSpring } from 'react-native-reanimated';
+import Animated, {
+  useAnimatedStyle,
+  useDerivedValue,
+  withSpring,
+} from 'react-native-reanimated';
 import { useTheme } from './ThemeProvider';
 import { Tube as TubeType } from '../core/types';
 import {
@@ -15,6 +19,8 @@ import {
 export { TUBE_SELECTED_LIFT, TUBE_CONTAINER_TOP_GAP } from './tube/dimensions';
 
 const SELECTED_OFFSET = -TUBE_SELECTED_LIFT;
+/** 튜브 선택/기울기 이동에 쓰는 공통 스프링 설정 */
+const TILT_SPRING = { damping: 18, stiffness: 150 };
 
 type TubeProps = {
   tube: TubeType;
@@ -37,28 +43,17 @@ export function TubeComponent({
 }: TubeProps) {
   const theme = useTheme();
 
+  // withSpring을 템플릿 리터럴에 직접 넣으면 애니메이션 객체가 문자열화되므로
+  // 보간값을 먼저 숫자로 구한 뒤 worklet에서 단위를 붙인다.
+  const tilt = useDerivedValue(() => withSpring(tiltAngle, TILT_SPRING));
+
   const animatedStyle = useAnimatedStyle(() => {
     const defaultY = selected ? SELECTED_OFFSET : 0;
     return {
       transform: [
-        {
-          translateX: withSpring(translationX, {
-            damping: 18,
-            stiffness: 150,
-          }),
-        },
-        {
-          translateY: withSpring(defaultY + translationY, {
-            damping: 18,
-            stiffness: 150,
-          }),
-        },
-        {
-          rotate: `${withSpring(tiltAngle, {
-            damping: 18,
-            stiffness: 150,
-          })}deg`,
-        },
+        { translateX: withSpring(translationX, TILT_SPRING) },
+        { translateY: withSpring(defaultY + translationY, TILT_SPRING) },
+        { rotate: `${tilt.value}deg` },
       ],
     };
   });

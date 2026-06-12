@@ -44,6 +44,8 @@ const WAVE_SURGE_AMPLITUDE = 5;
 /** 서지가 잦아드는 시간 */
 const WAVE_SURGE_DECAY_MS = 900;
 const SELECTED_OFFSET = -TUBE_SELECTED_LIFT;
+/** 튜브 선택/기울기 이동에 쓰는 공통 스프링 설정 */
+const TILT_SPRING = { damping: 18, stiffness: 150 };
 
 type TubeProps = {
   tube: TubeType;
@@ -81,28 +83,19 @@ export function TubeComponent({
     wasCompleted.current = completed;
   }, [completed, pop]);
 
+  // rotate는 단위를 붙인 문자열이어야 하므로, 스프링 보간값을 먼저
+  // 숫자로 구한 뒤 worklet에서 문자열로 합친다. withSpring을 템플릿
+  // 리터럴에 직접 넣으면 애니메이션 객체가 "[object Object]"로 문자열화되어
+  // 네이티브 transform 파서가 크래시한다.
+  const tilt = useDerivedValue(() => withSpring(tiltAngle, TILT_SPRING));
+
   const animatedStyle = useAnimatedStyle(() => {
     const defaultY = selected ? SELECTED_OFFSET : 0;
     return {
       transform: [
-        {
-          translateX: withSpring(translationX, {
-            damping: 18,
-            stiffness: 150,
-          }),
-        },
-        {
-          translateY: withSpring(defaultY + translationY, {
-            damping: 18,
-            stiffness: 150,
-          }),
-        },
-        {
-          rotate: `${withSpring(tiltAngle, {
-            damping: 18,
-            stiffness: 150,
-          })}deg`,
-        },
+        { translateX: withSpring(translationX, TILT_SPRING) },
+        { translateY: withSpring(defaultY + translationY, TILT_SPRING) },
+        { rotate: `${tilt.value}deg` },
         { scale: pop.value },
       ],
     };
