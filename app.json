@@ -46,6 +46,15 @@
           }
         }
       ]
-    ]
+    ],
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "242f0f15-698c-4f60-97f9-2720876e9029"
+      }
+    },
+    "owner": "dbwls99706"
   }
 }
