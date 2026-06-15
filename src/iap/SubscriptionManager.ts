@@ -31,9 +31,14 @@ class SubscriptionManagerClass {
 
       this.purchaseUpdateSub = purchaseUpdatedListener(async (purchase) => {
         const receipt = purchase.transactionReceipt;
-        if (receipt) {
-          this.activatePremium(purchase.productId);
+        if (!receipt) return;
+        this.activatePremium(purchase.productId);
+        // 리스너 콜백은 절대 reject하면 안 된다. finishTransaction이 실패하면
+        // 다음 실행 시 restorePurchases가 미완료 거래를 복구한다.
+        try {
           await finishTransaction({ purchase, isConsumable: false });
+        } catch (e) {
+          console.warn('finishTransaction failed', e);
         }
       });
 
