@@ -76,3 +76,4 @@
 - [2026-06-10] T121 완료: 데일리 스트릭 가시화 — 클리어 모달 보상 직후에 ⚡데일리 진행 + 🔥스트릭 라인 노출(게임 루프 안에서 다음 목표 제시). Phase 14/16/17 전체 완료
 - [2026-06-12] T153 완료: 실기기(Android 에뮬레이터) 검증 중 발견 — `${withSpring()}deg`가 애니메이션 객체를 "[object Object]deg"로 문자열화해 게임 진입 즉시 네이티브 transform 파서 크래시. useDerivedValue로 분리. Tube.tsx/web 동일 수정
 - [2026-06-12] T154 완료: 붓기 완료 콜백이 animatingPour=null 시점 클로저라 착지 가드에서 즉시 return → 첫 붓기 후 영구 정지(플레이 불가). 활성 붓기 ref 보관 + deps 안정화로 해결. dev build에서 붓기→이동 카운트 증가 검증
+- [2026-06-15] T155 완료: 네이티브 빌드 설정 영구화 — react-native-iap config plugin + expo-build-properties(kotlin 1.9.24)를 app.json에 등록. prebuild --clean 재생성으로 missingDimensionStrategy·kotlinVersion 둘 다 반영 확인. gitignore된 android/ 의존 제거. 릴리스 신뢰성 리뷰 후속(persist version/migrate, 생성기 재귀 방지, IAP 예외처리, ErrorBoundary)도 함께 반영

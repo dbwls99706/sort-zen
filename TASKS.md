@@ -131,4 +131,4 @@
 > Jest/웹에서 안 잡히고 네이티브 런타임에서만 드러난 치명 버그 2건. dev build로 실제 플레이 검증 중 발견.
 - [x] T153 Tube rotate transform 크래시 — `${withSpring(tiltAngle)}deg`가 애니메이션 객체를 "[object Object]deg"로 문자열화 → 네이티브 transform 파서가 NumberFormatException으로 크래시. useDerivedValue로 스프링값을 숫자로 분리 후 worklet에서 단위 결합. Tube.tsx/Tube.web.tsx 동일 수정 + TILT_SPRING 상수화
 - [x] T154 붓기 완료 hang — animatingPour에 저장한 onComplete가 animatingPour=null 시점 클로저라 착지 콜백이 가드에서 즉시 return → 첫 붓기 후 영구 정지(플레이 불가). 활성 붓기를 ref로 보관해 최신 toId를 읽고 콜백 deps를 [selectTube]로 안정화, onComplete 필드 제거
-- [ ] T155 (빌드) 네이티브 빌드 설정 영구화 — react-native-iap flavor 모호성(`missingDimensionStrategy "store","play"`) + Kotlin 버전 정렬(1.9.24, expo-modules-core Compose 컴파일러 미스매치)을 config plugin 또는 expo-build-properties로 영구화. 현재 android/는 gitignore라 prebuild/EAS 빌드 시 재발
+- [x] T155 (빌드) 네이티브 빌드 설정 영구화 — react-native-iap 공식 config plugin(`paymentProvider: "Play Store"` → missingDimensionStrategy 주입) + expo-build-properties(`android.kotlinVersion: 1.9.24`)를 app.json plugins에 등록. prebuild --clean 재생성 후 android/app/build.gradle·gradle.properties에 두 설정 모두 반영 확인 → gitignore된 android/ 없이도 EAS 빌드에서 재현
