@@ -80,6 +80,24 @@ describe('generator', () => {
     }
   });
 
+  // 단색 튜브 재시도 경로가 seedRetry 예산으로 제한되어 무한 재귀하지 않는다.
+  // 작은 보드 + 높은 셔플은 단색 튜브가 자주 남아 재시도 경로를 탄다.
+  test('많은 시드에서 항상 종료하고 솔버블 보드를 반환한다 (재귀 무한루프 회귀)', () => {
+    for (let i = 0; i < 100; i++) {
+      const params = makeParams({
+        colors: 3,
+        filledTubes: 3,
+        emptyTubes: 2,
+        shuffleSteps: 40,
+        seed: `recur-${i}`,
+      });
+      const tubes = generateLevel(params);
+      const total = tubes.reduce((s, t) => s + t.layers.length, 0);
+      expect(total).toBe(params.filledTubes * params.capacity);
+      expect(isSolvable(tubes)).toBe(true);
+    }
+  });
+
   test('빈튜브 보강 fallback 후에도 색상은 capacity개로 보존된다', () => {
     // 레벨 150은 빈튜브 1개로 사실상 항상 비-솔버블 → fallback 경로를 탄다
     const params = { ...getDifficulty(150), seed: 'fallback-150' };

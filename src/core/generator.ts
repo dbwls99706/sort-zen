@@ -56,8 +56,18 @@ export function generateLevel(params: GenParams, seedRetry = 0): Tube[] {
       t.layers.length === capacity &&
       t.layers.every((l) => l === t.layers[0]),
   ).length;
-  if (monochromeCount >= 2 && shuffleSteps > 10) {
-    return generateLevel({ ...params, seed: seed + '_r' }, seedRetry);
+  // 단색 튜브가 2개 이상이면 셔플이 충분히 섞이지 않은 것이므로 다른 시드로
+  // 재시도한다. 단, 재시도는 seedRetry 예산 안에서만 — 예산이 바닥나면
+  // 아래 솔버블 게이트(빈 튜브 보강 → 반드시 수렴)로 떨어뜨려 무한 재귀를 막는다.
+  if (
+    monochromeCount >= 2 &&
+    shuffleSteps > 10 &&
+    seedRetry < MAX_SEED_RETRIES
+  ) {
+    return generateLevel(
+      { ...params, seed: `${seed}_r${seedRetry}` },
+      seedRetry + 1,
+    );
   }
 
   // 솔버블 검증 게이트 — SPEC §8 "생성기가 항상 풀리는 보드 보장".
