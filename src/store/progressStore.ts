@@ -158,6 +158,9 @@ export const useProgressStore = create<ProgressState>()(
     }),
     {
       name: 'sortzen-progress',
+      version: 1,
+      // v1 기준선. 이후 스키마 변경 시 version을 올리고 oldVersion으로 분기한다.
+      migrate: (persisted) => persisted as ProgressState,
       storage: createJSONStorage(() => AsyncStorage),
     },
   ),
