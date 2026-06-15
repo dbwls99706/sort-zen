@@ -86,5 +86,7 @@
   "add_tube": "Watch Ad: +1 Tube",
   "share": "Share",
   "share_message_classic": "Cleared Sort ZEN level {n} in {m} moves {s}! 🧪✨",
-  "share_message_zen": "Cleared a Sort ZEN puzzle in {m} moves {s}! 🧪✨"
+  "share_message_zen": "Cleared a Sort ZEN puzzle in {m} moves {s}! 🧪✨",
+  "error_title": "Something went wrong",
+  "error_retry": "Try Again"
 }

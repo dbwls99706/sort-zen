@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { ThemeProvider } from '../src/components/ThemeProvider';
+import { ErrorBoundary } from '../src/components/ErrorBoundary';
 import { AdManager } from '../src/ads/AdManager';
 import { SoundManager } from '../src/audio/SoundManager';
 import { SubscriptionManager } from '../src/iap/SubscriptionManager';
@@ -27,9 +28,11 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <ThemeProvider>
-      <StatusBar style="auto" />
-      <Stack screenOptions={{ headerShown: false }} />
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <StatusBar style="auto" />
+        <Stack screenOptions={{ headerShown: false }} />
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }
