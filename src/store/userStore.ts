@@ -11,6 +11,9 @@ type UserState = {
   premiumType: PremiumType;
   totalPlayTime: number;
   totalCleared: number;
+  googleSignedIn: boolean;
+  googlePlayerName: string | null;
+  setGoogleAuth: (signedIn: boolean, name: string | null) => void;
   setPremium: (v: boolean, type: 'subscription' | 'lifetime') => void;
   spendCoins: (n: number) => boolean;
   addCoins: (n: number) => void;
@@ -28,6 +31,11 @@ export const useUserStore = create<UserState>()(
       premiumType: 'none' as PremiumType,
       totalPlayTime: 0,
       totalCleared: 0,
+      googleSignedIn: false,
+      googlePlayerName: null,
+
+      setGoogleAuth: (signedIn, name) =>
+        set({ googleSignedIn: signedIn, googlePlayerName: signedIn ? name : null }),
 
       setPremium: (v, type) =>
         set({ isPremium: v, premiumType: v ? type : 'none' }),
@@ -50,9 +58,16 @@ export const useUserStore = create<UserState>()(
     }),
     {
       name: 'sortzen-user',
-      version: 1,
-      // v1 기준선. 이후 스키마 변경 시 version을 올리고 oldVersion으로 분기한다.
-      migrate: (persisted) => persisted as UserState,
+      version: 2,
+      // v2: googleSignedIn/googlePlayerName 추가. 구버전엔 없으므로 기본값 보강.
+      migrate: (persisted) => {
+        const p = (persisted ?? {}) as Partial<UserState>;
+        return {
+          ...p,
+          googleSignedIn: p.googleSignedIn ?? false,
+          googlePlayerName: p.googlePlayerName ?? null,
+        } as UserState;
+      },
       storage: createJSONStorage(() => AsyncStorage),
     },
   ),

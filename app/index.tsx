@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, Alert, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../src/components/ThemeProvider';
@@ -7,6 +7,7 @@ import { useUserStore } from '../src/store/userStore';
 import { useSettingsStore } from '../src/store/settingsStore';
 import { useProgressStore } from '../src/store/progressStore';
 import { SoundManager } from '../src/audio/SoundManager';
+import { GameServicesManager } from '../src/services/GameServicesManager';
 import { Haptic } from '../src/utils/haptics';
 import { AdBanner } from '../src/ads/banner';
 import { Onboarding } from '../src/components/Onboarding';
@@ -44,6 +45,23 @@ export default function MainMenu() {
     SoundManager.play('button_tap');
     Haptic.light();
     router.push(path as never);
+  };
+
+  const handleLeaderboard = async () => {
+    SoundManager.play('button_tap');
+    Haptic.light();
+    if (!GameServicesManager.isAvailable()) {
+      Alert.alert(t('leaderboard'), t('leaderboard_android_only'));
+      return;
+    }
+    if (!useUserStore.getState().googleSignedIn) {
+      const ok = await GameServicesManager.signIn();
+      if (!ok) {
+        Alert.alert(t('leaderboard'), t('sign_in_failed'));
+        return;
+      }
+    }
+    await GameServicesManager.showLeaderboard();
   };
 
   return (
@@ -124,6 +142,15 @@ export default function MainMenu() {
             {t('achievements')}
           </Text>
           {hasBadge && <View style={[styles.badgeDot, { backgroundColor: theme.accent }]} />}
+        </Pressable>
+
+        <Pressable
+          style={[styles.smallButton, { backgroundColor: theme.surface }]}
+          onPress={handleLeaderboard}
+        >
+          <Text style={[styles.smallButtonText, { color: theme.text }]}>
+            {t('leaderboard')}
+          </Text>
         </Pressable>
       </View>
 

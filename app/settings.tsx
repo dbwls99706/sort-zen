@@ -1,11 +1,12 @@
 import React from 'react';
-import { View, Text, Switch, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Switch, Pressable, Alert, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSettingsStore } from '../src/store/settingsStore';
 import { useUserStore } from '../src/store/userStore';
 import { useTheme } from '../src/components/ThemeProvider';
 import { SoundManager } from '../src/audio/SoundManager';
+import { GameServicesManager } from '../src/services/GameServicesManager';
 import { Haptic } from '../src/utils/haptics';
 import { AdBanner } from '../src/ads/banner';
 import { VolumeControl } from '../src/components/VolumeControl';
@@ -41,6 +42,8 @@ export default function SettingsScreen() {
     setLanguage,
   } = useSettingsStore();
   const isPremium = useUserStore((s) => s.isPremium);
+  const googleSignedIn = useUserStore((s) => s.googleSignedIn);
+  const googlePlayerName = useUserStore((s) => s.googlePlayerName);
 
   const isThemeLocked = (thm: Theme): boolean =>
     (thm === 'neon' || thm === 'dark') && !isPremium;
@@ -49,6 +52,17 @@ export default function SettingsScreen() {
     SoundManager.play('button_tap');
     Haptic.light();
     router.back();
+  };
+
+  const handleSignIn = async () => {
+    Haptic.light();
+    const ok = await GameServicesManager.signIn();
+    if (!ok) Alert.alert(t('account'), t('sign_in_failed'));
+  };
+
+  const handleSignOut = () => {
+    Haptic.light();
+    GameServicesManager.signOut();
   };
 
   return (
@@ -184,6 +198,37 @@ export default function SettingsScreen() {
         ))}
       </View>
 
+      <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>
+        {t('account')}
+      </Text>
+      {GameServicesManager.isAvailable() ? (
+        googleSignedIn ? (
+          <View style={styles.row}>
+            <Text style={[styles.label, { color: theme.text }]}>
+              {t('signed_in_as', { name: googlePlayerName ?? t('player') })}
+            </Text>
+            <Pressable onPress={handleSignOut}>
+              <Text style={[styles.accountAction, { color: theme.accent }]}>
+                {t('sign_out')}
+              </Text>
+            </Pressable>
+          </View>
+        ) : (
+          <Pressable
+            style={[styles.signInButton, { backgroundColor: theme.surface, borderColor: theme.accent }]}
+            onPress={handleSignIn}
+          >
+            <Text style={[styles.signInText, { color: theme.accent }]}>
+              {t('sign_in_google')}
+            </Text>
+          </Pressable>
+        )
+      ) : (
+        <Text style={[styles.label, { color: theme.textSecondary }]}>
+          {t('leaderboard_android_only')}
+        </Text>
+      )}
+
       <AdBanner />
     </SafeAreaView>
   );
@@ -258,6 +303,21 @@ const styles = StyleSheet.create({
   },
   themeText: {
     fontSize: 14,
+    fontWeight: '600',
+  },
+  accountAction: {
+    fontSize: 14,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
+  signInButton: {
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    borderWidth: 2,
+  },
+  signInText: {
+    fontSize: 15,
     fontWeight: '600',
   },
 });

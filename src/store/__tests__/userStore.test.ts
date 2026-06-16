@@ -9,6 +9,8 @@ describe('userStore', () => {
       premiumType: 'none',
       totalPlayTime: 0,
       totalCleared: 0,
+      googleSignedIn: false,
+      googlePlayerName: null,
     });
   });
 
@@ -61,5 +63,18 @@ describe('userStore', () => {
     useUserStore.getState().incrementCleared();
     useUserStore.getState().incrementCleared();
     expect(useUserStore.getState().totalCleared).toBe(2);
+  });
+
+  test('setGoogleAuth는 로그인 상태와 이름을 설정한다', () => {
+    useUserStore.getState().setGoogleAuth(true, 'Yujin');
+    expect(useUserStore.getState().googleSignedIn).toBe(true);
+    expect(useUserStore.getState().googlePlayerName).toBe('Yujin');
+  });
+
+  test('setGoogleAuth(false)는 이름을 비운다', () => {
+    useUserStore.getState().setGoogleAuth(true, 'Yujin');
+    useUserStore.getState().setGoogleAuth(false, 'Yujin');
+    expect(useUserStore.getState().googleSignedIn).toBe(false);
+    expect(useUserStore.getState().googlePlayerName).toBeNull();
   });
 });

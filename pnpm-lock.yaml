@@ -53,6 +53,9 @@ importers:
       react-native:
         specifier: 0.76.6
         version: 0.76.6(@babel/core@7.29.0)(@babel/preset-env@7.29.2(@babel/core@7.29.0))(@types/react@18.3.28)(react@18.3.1)
+      react-native-google-leaderboards-and-achievements:
+        specifier: ^2.2.1
+        version: 2.2.1(react-native@0.76.6(@babel/core@7.29.0)(@babel/preset-env@7.29.2(@babel/core@7.29.0))(@types/react@18.3.28)(react@18.3.1))(react@18.3.1)
       react-native-google-mobile-ads:
         specifier: ^14.11.0
         version: 14.11.0(expo@52.0.49(@babel/core@7.29.0)(@babel/preset-env@7.29.2(@babel/core@7.29.0))(@expo/metro-runtime@4.0.1(react-native@0.76.6(@babel/core@7.29.0)(@babel/preset-env@7.29.2(@babel/core@7.29.0))(@types/react@18.3.28)(react@18.3.1)))(react-native@0.76.6(@babel/core@7.29.0)(@babel/preset-env@7.29.2(@babel/core@7.29.0))(@types/react@18.3.28)(react@18.3.1))(react@18.3.1))(react@18.3.1)
@@ -4063,6 +4066,12 @@ packages:
 
   react-is@19.2.4:
     resolution: {integrity: sha512-W+EWGn2v0ApPKgKKCy/7s7WHXkboGcsrXE+2joLyVxkbyVQfO3MUEaUQDHoSmb8TFFrSKYa9mw64WZHNHSDzYA==}
+
+  react-native-google-leaderboards-and-achievements@2.2.1:
+    resolution: {integrity: sha512-ye2JQiGE6GUNH9Sl8yD9HgqvEAVKwJe287cCKup1XCu9l0aRFaKuuV1t3T1jdijC/Cpm6kSWuISaMlj1kzRMWA==}
+    peerDependencies:
+      react: '*'
+      react-native: '*'
 
   react-native-google-mobile-ads@14.11.0:
     resolution: {integrity: sha512-OWCuk4fR7eLyQT4u2A98tAdgTTFA5/QXUxQEt89LtBJUSALh/Go3wye7X+259b/lszbOOFMxojpPFIMSKeCXmQ==}
@@ -10185,6 +10194,11 @@ snapshots:
   react-is@18.3.1: {}
 
   react-is@19.2.4: {}
+
+  react-native-google-leaderboards-and-achievements@2.2.1(react-native@0.76.6(@babel/core@7.29.0)(@babel/preset-env@7.29.2(@babel/core@7.29.0))(@types/react@18.3.28)(react@18.3.1))(react@18.3.1):
+    dependencies:
+      react: 18.3.1
+      react-native: 0.76.6(@babel/core@7.29.0)(@babel/preset-env@7.29.2(@babel/core@7.29.0))(@types/react@18.3.28)(react@18.3.1)
 
   react-native-google-mobile-ads@14.11.0(expo@52.0.49(@babel/core@7.29.0)(@babel/preset-env@7.29.2(@babel/core@7.29.0))(@expo/metro-runtime@4.0.1(react-native@0.76.6(@babel/core@7.29.0)(@babel/preset-env@7.29.2(@babel/core@7.29.0))(@types/react@18.3.28)(react@18.3.1)))(react-native@0.76.6(@babel/core@7.29.0)(@babel/preset-env@7.29.2(@babel/core@7.29.0))(@types/react@18.3.28)(react@18.3.1))(react@18.3.1))(react@18.3.1):
     dependencies:

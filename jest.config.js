@@ -18,6 +18,7 @@ module.exports = {
     '!src/ads/constants.ts',
     '!src/ads/banner.tsx',
     '!src/iap/**',
+    '!src/services/**',
     '!src/components/**',
   ],
 };

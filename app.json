@@ -45,6 +45,12 @@
             "kotlinVersion": "1.9.24"
           }
         }
+      ],
+      [
+        "./plugins/withPlayGamesServices",
+        {
+          "appId": "0"
+        }
       ]
     ],
     "extra": {

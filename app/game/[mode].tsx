@@ -23,6 +23,7 @@ import { ClearModal } from '../../src/components/ClearModal';
 import { SoundManager } from '../../src/audio/SoundManager';
 import { Haptic } from '../../src/utils/haptics';
 import { AdManager } from '../../src/ads/AdManager';
+import { GameServicesManager } from '../../src/services/GameServicesManager';
 import { pour, isTubeComplete } from '../../src/core/rules';
 import { hasLegalMove, findSolution } from '../../src/core/solver';
 import { calcStars, clearCoinReward } from '../../src/core/scoring';
@@ -152,6 +153,8 @@ export default function GameScreen() {
 
       if (mode === 'classic') {
         incrementLevel();
+        // 최고 도달 단계를 리더보드에 기록 (로그인 상태에서만 실제 제출).
+        GameServicesManager.submitBestScore();
         AdManager.maybeShowInterstitial(mode);
       }
     }

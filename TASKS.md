@@ -132,3 +132,13 @@
 - [x] T153 Tube rotate transform 크래시 — `${withSpring(tiltAngle)}deg`가 애니메이션 객체를 "[object Object]deg"로 문자열화 → 네이티브 transform 파서가 NumberFormatException으로 크래시. useDerivedValue로 스프링값을 숫자로 분리 후 worklet에서 단위 결합. Tube.tsx/Tube.web.tsx 동일 수정 + TILT_SPRING 상수화
 - [x] T154 붓기 완료 hang — animatingPour에 저장한 onComplete가 animatingPour=null 시점 클로저라 착지 콜백이 가드에서 즉시 return → 첫 붓기 후 영구 정지(플레이 불가). 활성 붓기를 ref로 보관해 최신 toId를 읽고 콜백 deps를 [selectTube]로 안정화, onComplete 필드 제거
 - [x] T155 (빌드) 네이티브 빌드 설정 영구화 — react-native-iap 공식 config plugin(`paymentProvider: "Play Store"` → missingDimensionStrategy 주입) + expo-build-properties(`android.kotlinVersion: 1.9.24`)를 app.json plugins에 등록. prebuild --clean 재생성 후 android/app/build.gradle·gradle.properties에 두 설정 모두 반영 확인 → gitignore된 android/ 없이도 EAS 빌드에서 재현
+
+## Phase 19: Google Play Games (선택적 로그인 + 리더보드)
+> 무한 절차 생성은 이미 완료. 추가: 구글 로그인 + 최고 도달 단계 리더보드. 안드로이드 전용·게스트 기본·로그인 선택적.
+- [x] T160 점수 순수로직 `src/core/leaderboard.ts` (levelToScore/isNewBest) + 테스트 5개. 비정상 입력 방어
+- [x] T161 `GameServicesManager`(안드로이드) + `.web.ts` no-op 스텁 — 로그인/리더보드/점수제출 캡슐화(컴포넌트 SDK 직접호출 금지 정책). 미설정/예외 시 안전 no-op
+- [x] T162 userStore 구글 인증 상태(googleSignedIn/googlePlayerName/setGoogleAuth) + persist v2 마이그레이션 + 테스트 2개
+- [x] T163 UI 연결 — 메뉴 '리더보드' 버튼, 설정 '계정' 섹션(로그인/로그아웃), 클래식 클리어 시 submitBestScore, _layout init. i18n ko/en 8키
+- [x] T164 Expo config plugin `withPlayGamesServices` — Play Games APP_ID 메타데이터/string 리소스 주입 + app.json 등록
+- [ ] T165 (외부 계정·사람 필요) Play Console: Play Games 프로젝트 생성·OAuth 동의·서명키 SHA-1 등록·리더보드 ID 발급 → `constants.ts` LEADERBOARD_ID + app.json appId에 실값 반영 (docs/06-game-services.md). 완료 전엔 게스트 플레이만 동작
+- [ ] T166 (후속) 전체 진척(코인·도전과제·설정) 기기간 클라우드 동기화 — Play Games Saved Games API 또는 백엔드. 현 라이브러리는 리더보드/도전과제만 지원

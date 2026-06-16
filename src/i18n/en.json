@@ -88,5 +88,13 @@
   "share_message_classic": "Cleared Sort ZEN level {n} in {m} moves {s}! 🧪✨",
   "share_message_zen": "Cleared a Sort ZEN puzzle in {m} moves {s}! 🧪✨",
   "error_title": "Something went wrong",
-  "error_retry": "Try Again"
+  "error_retry": "Try Again",
+  "leaderboard": "Leaderboard",
+  "account": "Account",
+  "player": "Player",
+  "sign_in_google": "Sign in with Google",
+  "sign_out": "Sign out",
+  "signed_in_as": "{name}",
+  "sign_in_failed": "Sign-in failed. Please try again later.",
+  "leaderboard_android_only": "Leaderboard is available on Android only."
 }
