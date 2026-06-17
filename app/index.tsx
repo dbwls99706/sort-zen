@@ -144,14 +144,16 @@ export default function MainMenu() {
           {hasBadge && <View style={[styles.badgeDot, { backgroundColor: theme.accent }]} />}
         </Pressable>
 
-        <Pressable
-          style={[styles.smallButton, { backgroundColor: theme.surface }]}
-          onPress={handleLeaderboard}
-        >
-          <Text style={[styles.smallButtonText, { color: theme.text }]}>
-            {t('leaderboard')}
-          </Text>
-        </Pressable>
+        {GameServicesManager.isAvailable() && (
+          <Pressable
+            style={[styles.smallButton, { backgroundColor: theme.surface }]}
+            onPress={handleLeaderboard}
+          >
+            <Text style={[styles.smallButtonText, { color: theme.text }]}>
+              {t('leaderboard')}
+            </Text>
+          </Pressable>
+        )}
       </View>
 
       <AdBanner />

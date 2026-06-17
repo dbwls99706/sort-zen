@@ -1,4 +1,4 @@
-import * as PlayGames from 'react-native-google-leaderboards-and-achievements';
+import type { GamesSignInResult } from 'react-native-google-leaderboards-and-achievements';
 import { useUserStore } from '../store/userStore';
 import { levelToScore } from '../core/leaderboard';
 import {
@@ -14,17 +14,32 @@ import {
  * 안드로이드 전용이며, 그 외 플랫폼·미설정·예외 상황에서는 전부 안전한 no-op.
  * 로그인은 선택적 — 게스트는 로컬 진척으로 계속 플레이하고, 로그인 시에만
  * 최고 도달 단계를 리더보드에 기록한다.
+ *
+ * 주의: 네이티브 라이브러리는 import되는 순간 TurboModule이 생성되며 그 init에서
+ * PlayGamesSdk.initialize()가 실행돼 자동 로그인을 시도한다. 이는 "게스트 기본"
+ * 정책을 깨고 앱 시작 시 로그인 화면이 앞을 가로막는다. 따라서 정적 import 대신
+ * 실제로 호출이 필요한 순간에만 동적 import하며, 리더보드가 실제로 설정되기
+ * 전(placeholder)에는 라이브러리를 아예 로드하지 않는다.
  */
+async function loadPlayGames() {
+  return import('react-native-google-leaderboards-and-achievements');
+}
+
 class GameServicesManagerClass {
-  /** 안드로이드에서 게임 서비스를 쓸 수 있는지 (UI 노출 판단용) */
+  /**
+   * 게임 서비스를 쓸 수 있는지 (UI 노출·동작 판단용).
+   * 안드로이드이면서 리더보드 ID가 실제 값으로 설정된 경우에만 true.
+   * placeholder 상태에서는 네이티브 모듈을 절대 건드리지 않는다.
+   */
   isAvailable(): boolean {
-    return isGameServicesPlatform();
+    return isGameServicesPlatform() && isLeaderboardConfigured();
   }
 
   /** 앱 시작 시 이전 세션의 로그인 상태를 복원한다. */
   async init(): Promise<void> {
-    if (!isGameServicesPlatform()) return;
+    if (!this.isAvailable()) return;
     try {
+      const PlayGames = await loadPlayGames();
       const res = await PlayGames.checkAuth();
       this.applyAuth(res);
     } catch (e) {
@@ -34,8 +49,9 @@ class GameServicesManagerClass {
 
   /** 사용자가 명시적으로 'Google로 로그인'을 눌렀을 때. 성공 여부를 반환. */
   async signIn(): Promise<boolean> {
-    if (!isGameServicesPlatform()) return false;
+    if (!this.isAvailable()) return false;
     try {
+      const PlayGames = await loadPlayGames();
       const res = await PlayGames.login();
       const ok = this.applyAuth(res);
       if (ok) await this.submitBestScore();
@@ -55,6 +71,7 @@ class GameServicesManagerClass {
   async submitBestScore(): Promise<void> {
     if (!this.canSubmit()) return;
     try {
+      const PlayGames = await loadPlayGames();
       await PlayGames.submitScore(
         LEADERBOARD_ID_HIGHEST_LEVEL,
         levelToScore(useUserStore.getState().level),
@@ -66,8 +83,9 @@ class GameServicesManagerClass {
 
   /** 네이티브 리더보드 UI 열기. */
   async showLeaderboard(): Promise<void> {
-    if (!isGameServicesPlatform() || !isLeaderboardConfigured()) return;
+    if (!this.isAvailable()) return;
     try {
+      const PlayGames = await loadPlayGames();
       await PlayGames.showLeaderboard(LEADERBOARD_ID_HIGHEST_LEVEL);
     } catch (e) {
       console.warn('[GameServices] showLeaderboard failed', e);
@@ -75,15 +93,11 @@ class GameServicesManagerClass {
   }
 
   private canSubmit(): boolean {
-    return (
-      isGameServicesPlatform() &&
-      isLeaderboardConfigured() &&
-      useUserStore.getState().googleSignedIn
-    );
+    return this.isAvailable() && useUserStore.getState().googleSignedIn;
   }
 
   /** 다양한 SDK 반환 형태를 방어적으로 파싱해 userStore에 반영. 로그인 여부 반환. */
-  private applyAuth(res: PlayGames.GamesSignInResult): boolean {
+  private applyAuth(res: GamesSignInResult): boolean {
     const signedIn =
       res?.isAuthenticated ?? res?.success ?? Boolean(res?.player);
     const name =
