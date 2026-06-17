@@ -17,6 +17,32 @@ export default function ShopScreen() {
   const isPremium = useUserStore((s) => s.isPremium);
   const premiumType = useUserStore((s) => s.premiumType);
 
+  const [prices, setPrices] = React.useState({
+    monthly: '₩2,500',
+    yearly: '₩19,900',
+    lifetime: '₩9,900',
+  });
+
+  React.useEffect(() => {
+    let active = true;
+    SubscriptionManager.getOfferings()
+      .then((res) => {
+        if (active) {
+          setPrices({
+            monthly: res.monthlyPrice,
+            yearly: res.yearlyPrice,
+            lifetime: res.lifetimePrice,
+          });
+        }
+      })
+      .catch((e) => {
+        console.warn('Failed to load offerings', e);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const handleBack = () => {
     SoundManager.play('button_tap');
     Haptic.light();
@@ -74,7 +100,7 @@ export default function ShopScreen() {
               {t('lifetime')}
             </Text>
             <Text style={[styles.cardPrice, { color: theme.text }]}>
-              ₩9,900
+              {prices.lifetime}
             </Text>
             <Text style={[styles.cardDesc, { color: theme.textSecondary }]}>
               {t('remove_ads_forever')}
@@ -98,7 +124,7 @@ export default function ShopScreen() {
               {t('yearly')}
             </Text>
             <Text style={[styles.cardPrice, { color: theme.text }]}>
-              ₩19,900/yr
+              {prices.yearly}/yr
             </Text>
             <Pressable
               style={[styles.subButton, { borderColor: theme.accent }]}
@@ -117,7 +143,7 @@ export default function ShopScreen() {
               {t('monthly')}
             </Text>
             <Text style={[styles.cardPrice, { color: theme.text }]}>
-              ₩2,500/mo
+              {prices.monthly}/mo
             </Text>
             <Pressable
               style={[styles.subButton, { borderColor: theme.accent }]}

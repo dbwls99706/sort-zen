@@ -2,34 +2,16 @@ export const SubscriptionManager = {
   async init(): Promise<void> {
     console.log('[SubscriptionManager Web Mock] Init IAP');
   },
-  async getOfferings(): Promise<{ subs: unknown[]; products: unknown[] }> {
+  async getOfferings(): Promise<{
+    monthlyPrice: string;
+    yearlyPrice: string;
+    lifetimePrice: string;
+  }> {
     console.log('[SubscriptionManager Web Mock] Get offerings');
     return {
-      subs: [
-        {
-          productId: 'sortzen_remove_ads_monthly',
-          title: 'Monthly Ad Removal (Web Mock)',
-          description: 'Remove ads for 1 month',
-          localizedPrice: '₩2,500',
-          price: '2500',
-        },
-        {
-          productId: 'sortzen_remove_ads_yearly',
-          title: 'Yearly Ad Removal (Web Mock)',
-          description: 'Remove ads for 1 year',
-          localizedPrice: '₩19,900',
-          price: '19900',
-        }
-      ],
-      products: [
-        {
-          productId: 'sortzen_remove_ads_lifetime',
-          title: 'Lifetime Ad Removal (Web Mock)',
-          description: 'Remove ads permanently',
-          localizedPrice: '₩9,900',
-          price: '9900',
-        }
-      ]
+      monthlyPrice: '₩2,500',
+      yearlyPrice: '₩19,900',
+      lifetimePrice: '₩9,900',
     };
   },
   async buySubscription(sku: string): Promise<void> {
