@@ -144,6 +144,9 @@ export function TubeComponent({
 
   const clipPath = useMemo(() => makeClipPath(), []);
   const outlinePath = useMemo(() => makeOutlinePath(), []);
+  // 표면 파동은 매 프레임 갱신되므로 패스를 새로 할당하지 않고 하나를 재사용한다.
+  // (튜브 개수 × 60fps 만큼의 SkPath 할당/GC를 제거 — H2)
+  const surfacePath = useMemo(() => Skia.Path.Make(), []);
 
   const layersCount = tube.layers.length;
   const topIndex = layersCount - 1;
@@ -154,7 +157,8 @@ export function TubeComponent({
 
   // 출렁이는 최상단 액체 표면(메니스커스)
   const wavyTopPath = useDerivedValue(() => {
-    const path = Skia.Path.Make();
+    const path = surfacePath;
+    path.reset();
     if (layersCount === 0) return path;
 
     const y = TUBE_HEIGHT - layersCount * LAYER_HEIGHT;
