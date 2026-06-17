@@ -9,6 +9,7 @@ type GameMode = 'classic' | 'zen';
 
 type GameStoreState = {
   tubes: Tube[];
+  initialTubes: Tube[];
   moves: Move[];
   selectedTube: number | null;
   mode: GameMode;
@@ -27,6 +28,7 @@ type GameStoreState = {
 
 export const useGameStore = create<GameStoreState>()((set, get) => ({
   tubes: [],
+  initialTubes: [],
   moves: [],
   selectedTube: null,
   mode: 'classic' as GameMode,
@@ -43,6 +45,7 @@ export const useGameStore = create<GameStoreState>()((set, get) => ({
     const solution = findSolution(tubes);
     set({
       tubes,
+      initialTubes: tubes,
       moves: [],
       selectedTube: null,
       mode,
@@ -110,8 +113,14 @@ export const useGameStore = create<GameStoreState>()((set, get) => ({
   },
 
   reset: () => {
-    const { mode, level } = get();
-    get().startNewGame(mode, level);
+    const { initialTubes } = get();
+    set({
+      tubes: initialTubes,
+      moves: [],
+      selectedTube: null,
+      cleared: false,
+      extraTubeUsed: false,
+    });
   },
 
   /** 빈 튜브 1개를 보드 끝에 추가 (데드엔드 회복, 보드당 1회) */
