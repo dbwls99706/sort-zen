@@ -28,7 +28,7 @@ const APP_ID_STRING = 'game_services_app_id';
 // (값은 android/build.gradle 의 Expo 기본값/ expo-build-properties 설정과 일치)
 const LEADERBOARD_GRADLE_PROPS = {
   GoogleLeaderboards_compileSdkVersion: '35',
-  GoogleLeaderboards_targetSdkVersion: '34',
+  GoogleLeaderboards_targetSdkVersion: '35',
   GoogleLeaderboards_minSdkVersion: '24',
   GoogleLeaderboards_kotlinVersion: '1.9.24',
 };
