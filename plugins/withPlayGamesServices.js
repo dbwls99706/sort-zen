@@ -15,11 +15,35 @@
 const {
   withAndroidManifest,
   withStringsXml,
+  withGradleProperties,
   AndroidConfig,
 } = require('@expo/config-plugins');
 
 const APP_ID_META = 'com.google.android.gms.games.APP_ID';
 const APP_ID_STRING = 'game_services_app_id';
+
+// react-native-google-leaderboards-and-achievements 의 build.gradle 은 SDK 버전을
+// rootProject.ext 가 아니라 'GoogleLeaderboards_*' gradle 프로퍼티로 읽는다.
+// Expo 는 이 값들을 buildscript.ext 에만 두므로, prebuild 시 직접 주입해 준다.
+// (값은 android/build.gradle 의 Expo 기본값/ expo-build-properties 설정과 일치)
+const LEADERBOARD_GRADLE_PROPS = {
+  GoogleLeaderboards_compileSdkVersion: '35',
+  GoogleLeaderboards_targetSdkVersion: '34',
+  GoogleLeaderboards_minSdkVersion: '24',
+  GoogleLeaderboards_kotlinVersion: '1.9.24',
+};
+
+function withLeaderboardGradleProps(config) {
+  return withGradleProperties(config, (cfg) => {
+    for (const [key, value] of Object.entries(LEADERBOARD_GRADLE_PROPS)) {
+      cfg.modResults = cfg.modResults.filter(
+        (item) => !(item.type === 'property' && item.key === key),
+      );
+      cfg.modResults.push({ type: 'property', key, value });
+    }
+    return cfg;
+  });
+}
 
 function withGamesAppIdString(config, appId) {
   return withStringsXml(config, (cfg) => {
@@ -55,6 +79,7 @@ const withPlayGamesServices = (config, props = {}) => {
   const appId = props.appId || '0';
   config = withGamesAppIdString(config, appId);
   config = withGamesAppIdMeta(config);
+  config = withLeaderboardGradleProps(config);
   return config;
 };
 
