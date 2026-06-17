@@ -89,6 +89,8 @@ export default function GameScreen() {
   const activePour = useRef<AnimatingPour | null>(null);
   const pourChain = useRef<{ colorId: number; count: number } | null>(null);
   const stopFlowHaptic = useRef<(() => void) | null>(null);
+  // 붓기 착지 콜백이 어떤 이유로든 누락돼도 보드가 영구 잠기지 않도록 하는 안전망
+  const pourSafetyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [animatingPour, setAnimatingPour] = useState<AnimatingPour | null>(null);
   // 힌트는 보드를 바꾸는 모든 이벤트(붓기/되돌리기/새 보드)에서 해제한다
   const [hint, setHint] = useState<{ from: number; to: number } | null>(null);
@@ -114,6 +116,7 @@ export default function GameScreen() {
     return () => {
       mounted.current = false;
       stopFlowHaptic.current?.();
+      if (pourSafetyTimer.current) clearTimeout(pourSafetyTimer.current);
     };
   }, []);
 
@@ -155,7 +158,7 @@ export default function GameScreen() {
         incrementLevel();
         // 최고 도달 단계를 리더보드에 기록 (로그인 상태에서만 실제 제출).
         GameServicesManager.submitBestScore();
-        AdManager.maybeShowInterstitial(mode);
+        // 전면광고는 클리어 연출을 가리지 않도록 '다음 레벨' 진입 시점으로 미룬다.
       }
     }
   }, [cleared, mode, incrementCleared, addCoins, incrementLevel, recordClear, moves.length, optimalMoves]);
@@ -193,11 +196,17 @@ export default function GameScreen() {
   };
 
   const handlePourLand = useCallback(() => {
+    if (pourSafetyTimer.current) {
+      clearTimeout(pourSafetyTimer.current);
+      pourSafetyTimer.current = null;
+    }
     stopFlowHaptic.current?.();
     stopFlowHaptic.current = null;
     const ap = activePour.current;
     activePour.current = null;
     if (!ap || !mounted.current) return;
+    // 착지 '퐁' 촉감 — 화면의 스플래시 링과 같은 순간에 울려 감각을 동기화한다.
+    Haptic.light();
     selectTube(ap.toId);
     setAnimatingPour(null);
   }, [selectTube]);
@@ -265,6 +274,9 @@ export default function GameScreen() {
         };
         activePour.current = nextPour;
         setAnimatingPour(nextPour);
+        // 애니메이션 완료 콜백이 누락돼도 보드가 잠기지 않도록 강제 커밋한다.
+        if (pourSafetyTimer.current) clearTimeout(pourSafetyTimer.current);
+        pourSafetyTimer.current = setTimeout(handlePourLand, POUR_DURATION_MS + 300);
         return;
       }
       // 레이아웃 미측정 시 즉시 커밋(폴백)
@@ -334,8 +346,14 @@ export default function GameScreen() {
   const handleNextLevel = useCallback(() => {
     SoundManager.play('button_tap');
     Haptic.light();
+    if (pourSafetyTimer.current) {
+      clearTimeout(pourSafetyTimer.current);
+      pourSafetyTimer.current = null;
+    }
     if (mode === 'classic') {
       startNewGame('classic', userLevel);
+      // 보상을 확인하고 다음 레벨로 넘어가는 이 순간에만 전면광고를 노출한다.
+      AdManager.maybeShowInterstitial('classic');
     } else {
       startNewGame('zen');
     }
@@ -407,6 +425,7 @@ export default function GameScreen() {
             toX={animatingPour.toX}
             toY={animatingPour.toY}
             color={animatingPour.color}
+            scale={scale}
             onComplete={handlePourLand}
           />
         )}
