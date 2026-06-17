@@ -22,7 +22,7 @@ export function getDifficulty(level: number): GenParams {
     emptyTubes,
     capacity: DEFAULT_CAPACITY,
     shuffleSteps,
-    seed: `lvl-${level}-${Date.now() % 100000}`,
+    seed: `lvl-${level}`,
   };
 }
 
