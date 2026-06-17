@@ -10,7 +10,6 @@ import {
   finishTransaction,
   getAvailablePurchases,
   Subscription,
-  Product,
 } from 'react-native-iap';
 import type { SubscriptionAndroid } from 'react-native-iap';
 import { useUserStore } from '../store/userStore';
@@ -53,12 +52,48 @@ class SubscriptionManagerClass {
   }
 
   async getOfferings(): Promise<{
-    subs: Subscription[];
-    products: Product[];
+    monthlyPrice: string;
+    yearlyPrice: string;
+    lifetimePrice: string;
   }> {
-    const subs = await getSubscriptions({ skus: SUBSCRIPTION_IDS });
-    const products = await getProducts({ skus: PRODUCT_IDS });
-    return { subs, products };
+    try {
+      const subs = await getSubscriptions({ skus: SUBSCRIPTION_IDS });
+      const products = await getProducts({ skus: PRODUCT_IDS });
+
+      const monthly = subs.find((s) => s.productId === 'sortzen_remove_ads_monthly');
+      const yearly = subs.find((s) => s.productId === 'sortzen_remove_ads_yearly');
+      const lifetime = products.find((p) => p.productId === 'sortzen_remove_ads_lifetime');
+
+      const getSubPrice = (sub: Subscription | undefined, defaultPrice: string) => {
+        if (!sub) return defaultPrice;
+        const androidSub = sub as SubscriptionAndroid;
+        const offerDetails = androidSub.subscriptionOfferDetails;
+        if (offerDetails && offerDetails.length > 0) {
+          const phases = offerDetails[0]?.pricingPhases?.pricingPhaseList;
+          if (phases && phases.length > 0) {
+            return phases[0].formattedPrice;
+          }
+        }
+        // iOS는 localizedPrice를 제공한다(Android 타입엔 없으므로 in으로 내로잉).
+        if ('localizedPrice' in sub) {
+          return sub.localizedPrice || defaultPrice;
+        }
+        return defaultPrice;
+      };
+
+      return {
+        monthlyPrice: getSubPrice(monthly, '₩2,500'),
+        yearlyPrice: getSubPrice(yearly, '₩19,900'),
+        lifetimePrice: lifetime?.localizedPrice || '₩9,900',
+      };
+    } catch (e) {
+      console.warn('[SubscriptionManager] Failed to get offerings, returning fallbacks', e);
+      return {
+        monthlyPrice: '₩2,500',
+        yearlyPrice: '₩19,900',
+        lifetimePrice: '₩9,900',
+      };
+    }
   }
 
   async buySubscription(sku: string): Promise<void> {
