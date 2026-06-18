@@ -18,15 +18,14 @@ import {
 /**
  * 재질별 물리. Verlet 적분 + 거리-제약 이완(relaxation) 소프트바디 모델.
  * (참고: anuraghazra/Verly.js의 "Jelly/Sticky Slime" 기법 — 저강성 제약 + 마찰)
- * - stiffness: 제약 이완 강도 0~1 (낮을수록 흐물흐물=슬라임, 높을수록 단단=스펀지)
- * - friction:  속도 유지 0.8~0.99 (높을수록 오래 출렁출렁 — 물/슬라임)
- * - returnK:   중심 복귀 스프링 (낮으면 멀리 끌려가 늘어남=슬라임, 높으면 제자리=스펀지)
- * - grabReach: 손가락이 끌어당기는 표면 범위(가우시안 폭)
+ * 중심 노드는 항상 제자리에 고정(pinned)되어 몸체가 떠다니지 않고 표면만 물컹인다.
+ * - stiffness: 스포크(반경) 제약 강도 0~1 (낮을수록 흐물흐물=슬라임, 높을수록 단단=스펀지)
+ * - friction:  속도 유지 0.75~0.95 (높을수록 오래 출렁 — 물, 낮으면 빨리 가라앉음)
+ * - grabReach: 손가락이 끌어당기는 표면 범위(가우시안 폭, 작을수록 국소적으로만 변형)
  */
 export type BlobPhysics = {
   stiffness: number;
   friction: number;
-  returnK: number;
   grabReach: number;
 };
 
@@ -40,11 +39,15 @@ export type BlobShape = {
 };
 
 type Node = { x: number; y: number; ox: number; oy: number };
-type Stick = { a: number; b: number; len: number };
+// kind: 0=막(둘레 이웃) 1=스포크(중심) 2=전단
+type Stick = { a: number; b: number; len: number; kind: 0 | 1 | 2 };
 
 const RING = 20;
 const ITER = 6; // 제약 이완 반복 (많을수록 형태 견고)
-const PIN_PULL = 0.65; // 손가락 쪽으로 표면을 당기는 강도
+const PIN_PULL = 0.42; // 손가락 쪽으로 표면을 당기는 강도 (과하면 점이 교차해 곡선이 깨짐)
+// 둘레 막은 강성과 무관하게 항상 팽팽히 유지해 외곽선이 매끈하게(깨짐 방지) 그려지도록 한다.
+const MEMBRANE_K = 0.85;
+const SHEAR_FACTOR = 0.6;
 
 type Props = {
   size: number;
@@ -87,10 +90,10 @@ function buildSim(
   for (let i = 0; i < RING; i++) {
     const cur = i + 1;
     const nxt = ((i + 1) % RING) + 1;
-    sticks.push({ a: cur, b: nxt, len: dist(nodes[cur], nodes[nxt]) }); // 막
-    sticks.push({ a: 0, b: cur, len: dist(nodes[0], nodes[cur]) }); // 스포크
+    sticks.push({ a: cur, b: nxt, len: dist(nodes[cur], nodes[nxt]), kind: 0 }); // 막
+    sticks.push({ a: 0, b: cur, len: dist(nodes[0], nodes[cur]), kind: 1 }); // 스포크
     const sh = ((i + 2) % RING) + 1;
-    sticks.push({ a: cur, b: sh, len: dist(nodes[cur], nodes[sh]) }); // 전단(형태 안정)
+    sticks.push({ a: cur, b: sh, len: dist(nodes[cur], nodes[sh]), kind: 2 }); // 전단
   }
   return { nodes, sticks };
 }
@@ -135,11 +138,18 @@ export function SoftBodyBlob({
     let raf: number;
     const step = () => {
       const { nodes, sticks } = sim.current;
-      const { stiffness, friction, returnK, grabReach } = phys.current;
+      const { stiffness, friction, grabReach } = phys.current;
       const f = finger.current;
 
-      // 1) Verlet 적분 (관성 = 위치차 × 마찰)
-      for (let i = 0; i < nodes.length; i++) {
+      // 0) 중심 노드는 항상 제자리에 고정 — 몸체가 떠다니지 않게 한다.
+      const c = nodes[0];
+      c.x = cx0;
+      c.y = cy0;
+      c.ox = cx0;
+      c.oy = cy0;
+
+      // 1) 둘레 노드만 Verlet 적분 (관성 = 위치차 × 마찰)
+      for (let i = 1; i < nodes.length; i++) {
         const p = nodes[i];
         const vx = (p.x - p.ox) * friction;
         const vy = (p.y - p.oy) * friction;
@@ -149,12 +159,7 @@ export function SoftBodyBlob({
         p.y += vy;
       }
 
-      // 2) 중심 복귀 스프링 (제자리로 돌아오려는 힘)
-      const c = nodes[0];
-      c.x += (cx0 - c.x) * returnK;
-      c.y += (cy0 - c.y) * returnK;
-
-      // 3) 손가락이 가까운 둘레 표면을 끌어당김 (엿가락 스트레치)
+      // 2) 손가락이 가까운 둘레 표면을 국소적으로 끌어당김 (물컹 변형)
       if (f) {
         for (let i = 1; i <= RING; i++) {
           const p = nodes[i];
@@ -167,7 +172,8 @@ export function SoftBodyBlob({
         }
       }
 
-      // 4) 거리 제약 이완 (막/스포크/전단) — 저강성일수록 흐물흐물
+      // 3) 거리 제약 이완. 막은 항상 단단(매끈한 외곽선=깨짐 방지),
+      //    스포크는 재질 강성(=물컹함), 전단은 그 사이.
       for (let k = 0; k < ITER; k++) {
         for (let s = 0; s < sticks.length; s++) {
           const st = sticks[s];
@@ -176,13 +182,21 @@ export function SoftBodyBlob({
           const dx = b.x - a.x;
           const dy = b.y - a.y;
           const d = Math.hypot(dx, dy) || 0.0001;
-          const diff = ((st.len - d) / d) * 0.5 * stiffness;
-          const ox = dx * diff;
-          const oy = dy * diff;
-          a.x -= ox;
-          a.y -= oy;
-          b.x += ox;
-          b.y += oy;
+          const eff =
+            st.kind === 0 ? MEMBRANE_K : st.kind === 1 ? stiffness : stiffness * SHEAR_FACTOR;
+          const ratio = ((st.len - d) / d) * eff;
+          // 중심(인덱스 0)은 고정 — 스포크 보정은 둘레 쪽이 전부 흡수
+          if (st.a === 0) {
+            b.x += dx * ratio;
+            b.y += dy * ratio;
+          } else {
+            const ox = dx * ratio * 0.5;
+            const oy = dy * ratio * 0.5;
+            a.x -= ox;
+            a.y -= oy;
+            b.x += ox;
+            b.y += oy;
+          }
         }
       }
 
