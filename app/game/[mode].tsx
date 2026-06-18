@@ -244,14 +244,16 @@ export default function GameScreen() {
         const color = theme.colors[colorId % theme.colors.length];
         const direction = to.x > from.x ? 'right' : 'left';
 
-        // Floating translation coordinates (place source mouth above target mouth)
-        // Scaled inverse to match the Transform Scale of TubeComponent
+        // 들어올린 소스 튜브 입구 높이(튜브-로컬 단위). 스트림 시작점과 동일하게 맞춰야
+        // 액체가 입구에서 흘러나오는 것처럼 보인다(예전엔 입구는 -120 위인데 스트림은
+        // -30에서 시작해 입구와 90px 떨어진 허공에서 액체가 생겨 어색했다).
+        const POUR_LIFT = 120;
         const translationX = (to.x - from.x) / scale + (direction === 'right' ? -15 : 15);
-        const translationY = (to.y - from.y) / scale - 120;
+        const translationY = (to.y - from.y) / scale - POUR_LIFT;
 
-        // Droplet stream coordinates relative to boardContainer
+        // 스트림: 들어올린 입구 바로 아래에서 시작해 대상 튜브 입구로 떨어진다.
         const fromX = to.x + to.width / 2 + (direction === 'right' ? -15 : 15) * scale;
-        const fromY = to.y - 30 * scale;
+        const fromY = to.y - (POUR_LIFT - 10) * scale;
         const toX = to.x + to.width / 2;
         const toY = to.y + 10 * scale;
 
