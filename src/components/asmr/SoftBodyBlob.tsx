@@ -49,6 +49,9 @@ const FINGER_PUSH = 0.85; // 손끝 밖으로 표면을 밀어내는 비율
 const MAX_FINGER_DISP = 0.13; // 프레임당 손가락 변위 상한 (R 대비) — 점 관통/곡선 깨짐 방지
 const PRESS_SCALE = 0.02; // 가스압 → 변 법선 힘 스케일
 const MAX_PRESS_MULT = 3; // 가스압 폭주 클램프 (압축 시 발산 방지)
+// 형태 기억: 압력 모델은 둘레를 원으로 둥글리려 하므로, 정점을 무게중심 기준 rest 위치로
+// 약하게 당겨 재질별 실루엣(스퀴클/물방울/타원)을 유지한다. tension에 비례 → 단단한 재질일수록 형태 고수.
+const SHAPE_FACTOR = 0.35;
 
 type Props = {
   size: number;
@@ -71,7 +74,13 @@ function restDir(i: number, shape: BlobShape): { rx: number; ry: number } {
   };
 }
 
-type Sim = { nodes: Node[]; restLen: number[]; restArea: number };
+type Sim = {
+  nodes: Node[];
+  restLen: number[];
+  restArea: number;
+  restOffX: number[]; // 무게중심 기준 rest 위치 오프셋 (형태 기억용)
+  restOffY: number[];
+};
 
 function polygonArea(nodes: Node[]): number {
   let a = 0;
@@ -86,11 +95,15 @@ function polygonArea(nodes: Node[]): number {
 function buildSim(s: BlobShape, R: number, cx0: number, cy0: number): Sim {
   const rr = R * s.scale;
   const nodes: Node[] = [];
+  const restOffX: number[] = [];
+  const restOffY: number[] = [];
   for (let i = 0; i < RING; i++) {
     const d = restDir(i, s);
-    const x = cx0 + d.rx * rr;
-    const y = cy0 + d.ry * rr;
-    nodes.push({ x, y, ox: x, oy: y });
+    const ox = d.rx * rr;
+    const oy = d.ry * rr;
+    restOffX.push(ox);
+    restOffY.push(oy);
+    nodes.push({ x: cx0 + ox, y: cy0 + oy, ox: cx0 + ox, oy: cy0 + oy });
   }
   const restLen: number[] = [];
   for (let i = 0; i < RING; i++) {
@@ -98,7 +111,7 @@ function buildSim(s: BlobShape, R: number, cx0: number, cy0: number): Sim {
     const b = nodes[(i + 1) % RING];
     restLen.push(Math.hypot(a.x - b.x, a.y - b.y));
   }
-  return { nodes, restLen, restArea: Math.abs(polygonArea(nodes)) };
+  return { nodes, restLen, restArea: Math.abs(polygonArea(nodes)), restOffX, restOffY };
 }
 
 /** 손가락 좌표 배열 추출 (멀티터치 — 엄지 두 개 쭈그리기 지원) */
@@ -143,7 +156,7 @@ export function SoftBodyBlob({
   useEffect(() => {
     let raf: number;
     const step = () => {
-      const { nodes, restLen, restArea } = sim.current;
+      const { nodes, restLen, restArea, restOffX, restOffY } = sim.current;
       const { pressure, tension, friction } = phys.current;
       const fs = fingers.current;
       const n = nodes.length;
@@ -197,7 +210,8 @@ export function SoftBodyBlob({
       }
 
       // 4) 부피 보존(가스압) — 변 법선 방향으로 P=nRT/V (Matyka pressurized soft body).
-      //    누른 변은 그대로 두고 빈 변들만 법선으로 부풀어 사실적인 옆 bulge가 생긴다.
+      //    변 법선은 재질별 실루엣(스퀴클/물방울/타원)을 보존한다(정점 법선은 형태를 둥글려 부적합).
+      //    부호 있는 면적(sign)으로 오목/꼬임 시 압력 역전을 막고, 면적 하한으로 발산을 막는다.
       let A2 = 0;
       for (let i = 0; i < n; i++) {
         const a = nodes[i];
@@ -205,15 +219,15 @@ export function SoftBodyBlob({
         A2 += a.x * b.y - b.x * a.y;
       }
       const sign = A2 >= 0 ? 1 : -1;
-      const invArea = 1 / (Math.abs(A2 * 0.5) || 1);
-      const pGas = Math.min(pressure * restArea * invArea, pressure * MAX_PRESS_MULT);
+      const area = Math.max(Math.abs(A2 * 0.5), R * R * 0.3); // 납작하게 눌려도 분모 폭주 방지
+      const pGas = Math.min((pressure * restArea) / area, pressure * MAX_PRESS_MULT);
       for (let i = 0; i < n; i++) {
         const a = nodes[i];
         const b = nodes[(i + 1) % n];
         const ex = b.x - a.x;
         const ey = b.y - a.y;
         const el = Math.hypot(ex, ey) || 0.0001;
-        const nx = (sign * ey) / el; // 외향 법선
+        const nx = (sign * ey) / el; // 외향 변 법선
         const ny = (-sign * ex) / el;
         const fpush = pGas * el * PRESS_SCALE;
         a.x += nx * fpush;
@@ -222,7 +236,7 @@ export function SoftBodyBlob({
         b.y += ny * fpush;
       }
 
-      // 5) 무게중심을 제자리로 — 떠다니지 않게 약하게 고정
+      // 5) 무게중심 산출
       let cx = 0;
       let cy = 0;
       for (let i = 0; i < n; i++) {
@@ -231,6 +245,16 @@ export function SoftBodyBlob({
       }
       cx /= n;
       cy /= n;
+
+      // 6) 형태 기억 — 정점을 무게중심 기준 rest 위치로 약하게 당겨 재질 실루엣 유지(tension 비례)
+      const shapeK = tension * SHAPE_FACTOR;
+      for (let i = 0; i < n; i++) {
+        const p = nodes[i];
+        p.x += (cx + restOffX[i] - p.x) * shapeK;
+        p.y += (cy + restOffY[i] - p.y) * shapeK;
+      }
+
+      // 7) 무게중심을 제자리로 — 떠다니지 않게 약하게 고정
       const ax = (cx0 - cx) * ANCHOR_K;
       const ay = (cy0 - cy) * ANCHOR_K;
       if (ax || ay) {
