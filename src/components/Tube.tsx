@@ -155,27 +155,31 @@ export function TubeComponent({
     [tube.layers, topIndex],
   );
 
-  // 출렁이는 최상단 액체 표면(메니스커스)
+  // 출렁이는 최상단 '한 레이어'만 그리는 메니스커스.
+  // 예전엔 바닥(TUBE_HEIGHT)까지 채워 액체 기둥 전체를 top 색으로 덮어버려,
+  // 아래 레이어들이 가려져 꽉 찬 튜브가 한 색으로 통일돼 보이던 버그가 있었다.
+  // 이제 top 레이어 밴드([y, y+LAYER_HEIGHT])만 채운다.
   const wavyTopPath = useDerivedValue(() => {
     const path = surfacePath;
     path.reset();
     if (layersCount === 0) return path;
 
     const y = TUBE_HEIGHT - layersCount * LAYER_HEIGHT;
+    const bandBottom = y + LAYER_HEIGHT; // top 레이어 밑면(다음 레이어와의 경계)
     const left = 5;
     const right = TUBE_WIDTH - 5;
     const stepWidth = (right - left) / WAVE_STEPS;
     const phase = wavePhase.value;
     const amplitude = WAVE_AMPLITUDE + surge.value * WAVE_SURGE_AMPLITUDE;
 
-    path.moveTo(left, TUBE_HEIGHT);
+    path.moveTo(left, bandBottom);
     path.lineTo(left, y + Math.sin(phase) * amplitude);
     for (let i = 1; i <= WAVE_STEPS; i++) {
       const x = left + i * stepWidth;
       const t = i / WAVE_STEPS;
       path.lineTo(x, y + Math.sin(phase + t * Math.PI * 2) * amplitude);
     }
-    path.lineTo(right, TUBE_HEIGHT);
+    path.lineTo(right, bandBottom);
     path.close();
     return path;
   });
@@ -239,7 +243,7 @@ export function TubeComponent({
               <Path path={wavyTopPath}>
                 <LinearGradient
                   start={vec(0, TUBE_HEIGHT - layersCount * LAYER_HEIGHT)}
-                  end={vec(0, TUBE_HEIGHT)}
+                  end={vec(0, TUBE_HEIGHT - (layersCount - 1) * LAYER_HEIGHT)}
                   colors={[lighten(topColor, 0.28), topColor]}
                 />
               </Path>
