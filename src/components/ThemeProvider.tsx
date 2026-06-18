@@ -22,11 +22,12 @@ const PASTEL_COLORS: ThemeColors = {
   accent: '#FF9A76',
   tubeOutline: '#BCC2CC',
   tubeBackground: '#F5F5F5',
-  // 색상환 전체에 고르게 분산해 보드 구분성 확보(부드러운 파스텔 유지)
+  // 초반 colorId(0~5)가 최대한 다른 색이 되도록 색상환에서 멀리 떨어진 순으로 배치한다.
+  // (인접 유사색 — 살구/주황/노랑 — 이 연달아 나와 구별이 안 되던 문제 수정)
   colors: [
-    '#FF8A8A', '#FFAE7A', '#FFD36B', '#F2E96B',
-    '#B6E07A', '#79D98E', '#5FD3BE', '#6CC6EE',
-    '#7AA6F0', '#9D8CF0', '#C58CE6', '#F58CC8',
+    '#FF8A8A', '#79D98E', '#7AA6F0', '#FFD36B',
+    '#C58CE6', '#5FD3BE', '#FFAE7A', '#F58CC8',
+    '#B6E07A', '#9D8CF0', '#6CC6EE', '#F2E96B',
   ],
 };
 
@@ -39,9 +40,9 @@ const NEON_COLORS: ThemeColors = {
   tubeOutline: '#4444AA',
   tubeBackground: '#12122A',
   colors: [
-    '#FF0080', '#FF4040', '#FF8000', '#FFFF00',
-    '#00FF00', '#00FFAA', '#00FFFF', '#0080FF',
-    '#8000FF', '#FF00FF', '#FF0040', '#80FF00',
+    '#FF0080', '#00FF00', '#0080FF', '#FFFF00',
+    '#8000FF', '#00FFFF', '#FF8000', '#FF00FF',
+    '#80FF00', '#00FFAA', '#FF4040', '#FF0040',
   ],
 };
 
@@ -54,9 +55,9 @@ const DARK_COLORS: ThemeColors = {
   tubeOutline: '#333355',
   tubeBackground: '#0F3460',
   colors: [
-    '#E94560', '#F5A623', '#7ED321', '#4A90D9',
-    '#BD10E0', '#50E3C2', '#F8E71C', '#D0021B',
-    '#9013FE', '#417505', '#B8E986', '#F6A1C4',
+    '#E94560', '#7ED321', '#4A90D9', '#F8E71C',
+    '#BD10E0', '#50E3C2', '#F5A623', '#F6A1C4',
+    '#9013FE', '#417505', '#B8E986', '#D0021B',
   ],
 };
 
