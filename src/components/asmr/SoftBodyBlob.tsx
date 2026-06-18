@@ -15,21 +15,36 @@ import {
   Group,
 } from '@shopify/react-native-skia';
 
-/** 재질별 물리 — 값이 클수록: K=형태 복원 빠름, DAMP=출렁임 적음, REACH=표면이 손가락 따라 멀리 늘어남 */
+/**
+ * 재질별 물리.
+ * - springK: 형태 복원 속도(클수록 빠르게 단단히 돌아옴)
+ * - damping: 감쇠(작을수록 오래 출렁출렁 — 물/슬라임, 클수록 즉시 멈춤 — 스펀지)
+ * - reach: 표면이 손가락을 따라 늘어나는 정도(엿가락 스트레치)
+ * - squish: 누를 때 전체 압축(<1 수축=스펀지, >1 부풂=크림)
+ * - centerK: 몸체가 손가락을 따라가는 정도(작으면 남아서 늘어남=슬라임, 크면 미끄러져 따라옴=로션)
+ */
 export type BlobPhysics = {
   springK: number;
   damping: number;
   reach: number;
   squish: number;
+  centerK: number;
+};
+
+/** 정지 상태의 외형 — 재질마다 실루엣을 다르게 한다 */
+export type BlobShape = {
+  scale: number; // 전체 크기 배수
+  lobes: number; // 둘레 돌기 개수 (스펀지=4 모서리, 크림=몽글)
+  lobeAmp: number; // 돌기 크기
+  aspectX: number; // 가로 비율 (물=넓적, 슬라임=세로 물방울)
+  aspectY: number; // 세로 비율
 };
 
 type Point = { x: number; y: number; vx: number; vy: number; rx: number; ry: number };
 
-const RING = 16; // 표면 제어점 개수
+const RING = 20; // 표면 제어점 개수 (lobes 최대 ~9까지 해상)
 const DT = 1;
 const NEIGHBOR_SMOOTH = 0.16;
-// 중심은 손가락을 약하게·관성있게 따라가 몸체가 뒤에 남는다(→ 엿가락처럼 늘어남).
-const CENTER_K = 0.07;
 const CENTER_DAMP = 0.3;
 
 type Props = {
@@ -37,23 +52,34 @@ type Props = {
   outerColor: string;
   innerColor: string;
   physics: BlobPhysics;
-  /** 재질이 바뀌면 점들을 즉시 원형으로 되돌린다 */
+  shape: BlobShape;
+  /** 재질이 바뀌면 점들을 즉시 정지 외형으로 되돌린다 */
   resetKey: string;
   onSqueezeStart: (e: GestureResponderEvent) => void;
   onSqueezeMove: (e: GestureResponderEvent, g: PanResponderGestureState) => void;
   onRelease: () => void;
 };
 
+/** i번째 점의 정지 방향 벡터(돌기·종횡비 반영, 크기는 1 부근) */
+function restDir(i: number, shape: BlobShape): { rx: number; ry: number } {
+  const a = (i / RING) * Math.PI * 2;
+  const lobe = 1 + shape.lobeAmp * Math.cos(shape.lobes * a);
+  return {
+    rx: Math.cos(a) * shape.aspectX * lobe,
+    ry: Math.sin(a) * shape.aspectY * lobe,
+  };
+}
+
 /**
- * Skia 소프트바디 블롭. 16개 표면 점을 스프링+감쇠로 적분(semi-implicit Euler)하고
- * 이웃 평활화로 매끈한 곡면을 유지한다. 손가락을 누르면 가까운 표면이 늘어나고,
- * 떼면 관성으로 출렁이며 복원된다 — skew 가짜 변형 대신 실제 물리 거동.
+ * Skia 소프트바디 블롭. RING개 표면 점을 스프링+감쇠로 적분(semi-implicit Euler)하고
+ * 이웃 평활화로 매끈한 곡면을 유지한다. 재질별 물리/외형으로 거동과 실루엣을 다르게 한다.
  */
 export function SoftBodyBlob({
   size,
   outerColor,
   innerColor,
   physics,
+  shape,
   resetKey,
   onSqueezeStart,
   onSqueezeMove,
@@ -65,25 +91,31 @@ export function SoftBodyBlob({
 
   const phys = useRef(physics);
   phys.current = physics;
+  const shapeRef = useRef(shape);
+  shapeRef.current = shape;
 
   const center = useRef({ x: cx0, y: cy0, vx: 0, vy: 0 });
   const finger = useRef<{ x: number; y: number } | null>(null);
 
   const points = useRef<Point[]>(
     Array.from({ length: RING }, (_, i) => {
-      const a = (i / RING) * Math.PI * 2;
-      return { x: cx0 + Math.cos(a) * R, y: cy0 + Math.sin(a) * R, vx: 0, vy: 0, rx: Math.cos(a), ry: Math.sin(a) };
+      const d = restDir(i, shape);
+      const rr = R * shape.scale;
+      return { x: cx0 + d.rx * rr, y: cy0 + d.ry * rr, vx: 0, vy: 0, rx: d.rx, ry: d.ry };
     }),
   );
   const [, setTick] = useState(0);
 
-  // 재질 변경 시 즉시 원형 복원
+  // 재질 변경 시 즉시 정지 외형으로 복원
   useEffect(() => {
     center.current = { x: cx0, y: cy0, vx: 0, vy: 0 };
+    const rr = R * shapeRef.current.scale;
     points.current.forEach((p, i) => {
-      const a = (i / RING) * Math.PI * 2;
-      p.x = cx0 + Math.cos(a) * R;
-      p.y = cy0 + Math.sin(a) * R;
+      const d = restDir(i, shapeRef.current);
+      p.rx = d.rx;
+      p.ry = d.ry;
+      p.x = cx0 + d.rx * rr;
+      p.y = cy0 + d.ry * rr;
       p.vx = 0;
       p.vy = 0;
     });
@@ -96,19 +128,19 @@ export function SoftBodyBlob({
       const pts = points.current;
       const c = center.current;
       const f = finger.current;
-      const { springK, damping, reach, squish } = phys.current;
+      const { springK, damping, reach, squish, centerK } = phys.current;
+      const scale = shapeRef.current.scale;
 
       // 중심: 손가락으로 끌리거나 원점으로 복원 (관성 보존)
       const ctx = f ? f.x : cx0;
       const cty = f ? f.y : cy0;
-      c.vx += CENTER_K * (ctx - c.x) - CENTER_DAMP * c.vx;
-      c.vy += CENTER_K * (cty - c.y) - CENTER_DAMP * c.vy;
+      c.vx += centerK * (ctx - c.x) - CENTER_DAMP * c.vx;
+      c.vy += centerK * (cty - c.y) - CENTER_DAMP * c.vy;
       c.x += c.vx * DT;
       c.y += c.vy * DT;
 
       const grabbed = f !== null;
-      // 누르면 전체가 squish 비율로 압축(스펀지<1)되거나 부풀어(크림>1) 오른다
-      const rr = grabbed ? R * squish : R;
+      const rr = R * scale * (grabbed ? squish : 1);
       for (let i = 0; i < pts.length; i++) {
         const p = pts[i];
         let tx = c.x + p.rx * rr;

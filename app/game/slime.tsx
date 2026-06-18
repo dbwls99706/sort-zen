@@ -21,6 +21,7 @@ import { Haptic } from '../../src/utils/haptics';
 import {
   SoftBodyBlob,
   type BlobPhysics,
+  type BlobShape,
 } from '../../src/components/asmr/SoftBodyBlob';
 
 type ASMRMaterial = {
@@ -32,8 +33,10 @@ type ASMRMaterial = {
   particleColors: string[];
   descKo: string;
   descEn: string;
-  /** Skia 소프트바디 거동 (점성·탄성·압축) */
+  /** Skia 소프트바디 거동 (점성·탄성·압축·추종) */
   blob: BlobPhysics;
+  /** 정지 실루엣 (재질별 모양 차이) */
+  blobShape: BlobShape;
   particleSpeed: number;
   particleGravity: number;
   screenShakeFactor: number;
@@ -52,8 +55,10 @@ const MATERIALS: ASMRMaterial[] = [
     particleColors: ['#E3FFB2', '#A1E8AF', '#7CE0A6'],
     descKo: '쫀득하고 말랑한 슬라임입니다. 쭉 늘리며 만져보세요.',
     descEn: 'Squeeze and stretch the gooey slime to relax.',
-    // 끈적: 복원 느리고(springK↓) 오래 출렁이며(damping↓) 멀리 늘어남(reach↑)
-    blob: { springK: 0.1, damping: 0.13, reach: 1.05, squish: 0.92 },
+    // 끈적: 복원 느리고(springK↓)·오래 출렁(damping↓)·멀리 늘어나며(reach↑)·몸체가 남아(centerK↓) 엿가락처럼 늘어남
+    blob: { springK: 0.06, damping: 0.1, reach: 1.1, squish: 0.95, centerK: 0.05 },
+    // 세로로 긴 물방울 실루엣
+    blobShape: { scale: 1.0, lobes: 0, lobeAmp: 0, aspectX: 0.94, aspectY: 1.1 },
     particleSpeed: 3.5,
     particleGravity: 0.1,
     screenShakeFactor: 0.15,
@@ -68,8 +73,10 @@ const MATERIALS: ASMRMaterial[] = [
     particleColors: ['#FFFFFF', '#E0F7FA', '#B2EBF2'],
     descKo: '몽글몽글하고 푹신한 크림입니다. 만지면 부풀어 오릅니다.',
     descEn: 'Squish and spread the fluffy shaving cream.',
-    // 푹신: 누르면 부풀고(squish>1) 적당히 단단함
-    blob: { springK: 0.18, damping: 0.3, reach: 0.45, squish: 1.12 },
+    // 푹신: 누르면 부풀고(squish>1)·빨리 안정(damping↑)·잘 안 늘어남(reach↓)
+    blob: { springK: 0.16, damping: 0.34, reach: 0.4, squish: 1.15, centerK: 0.12 },
+    // 몽글몽글 부푼 구름 실루엣
+    blobShape: { scale: 1.12, lobes: 8, lobeAmp: 0.07, aspectX: 1, aspectY: 1 },
     particleSpeed: 1.8,
     particleGravity: 0.05,
     screenShakeFactor: 0.08,
@@ -84,8 +91,10 @@ const MATERIALS: ASMRMaterial[] = [
     particleColors: ['#FFF0F5', '#F8BBD0', '#F1A7C4'],
     descKo: '부드럽고 매끄러운 로션입니다. 화면 전체를 미끄러지듯 문지르세요.',
     descEn: 'Rub the silky smooth lotion for calming sounds.',
-    // 미끄럽게 흐름: 부드러운 복원 + 잘 늘어남
-    blob: { springK: 0.12, damping: 0.22, reach: 0.9, squish: 0.96 },
+    // 미끄럽게 흐름: 부드러운 복원·잘 늘어나고(reach↑)·몸체가 손가락 따라 미끄러짐(centerK↑)
+    blob: { springK: 0.11, damping: 0.2, reach: 0.95, squish: 0.97, centerK: 0.18 },
+    // 매끈한 가로 타원
+    blobShape: { scale: 1.0, lobes: 0, lobeAmp: 0, aspectX: 1.12, aspectY: 0.93 },
     particleSpeed: 2.8,
     particleGravity: 0.16,
     screenShakeFactor: 0.12,
@@ -100,8 +109,10 @@ const MATERIALS: ASMRMaterial[] = [
     particleColors: ['#FFF9C4', '#FFF59D', '#FBC02D'],
     descKo: '폭신한 스펀지입니다. 꽉 쥐어 짜면 강하게 수축했다가 튕겨납니다.',
     descEn: 'Squeeze the porous sponge and enjoy the crackles.',
-    // 단단: 빠른 복원(springK↑·damping↑), 세게 압축(squish↓)
-    blob: { springK: 0.36, damping: 0.45, reach: 0.32, squish: 0.62 },
+    // 단단: 즉시 복원(springK↑·damping↑)·거의 안 늘어나고(reach↓)·세게 압축(squish↓)
+    blob: { springK: 0.4, damping: 0.5, reach: 0.28, squish: 0.6, centerK: 0.1 },
+    // 모서리 있는 사각(스퀴클) 실루엣
+    blobShape: { scale: 0.96, lobes: 4, lobeAmp: 0.14, aspectX: 1, aspectY: 1 },
     particleSpeed: 7.0,
     particleGravity: 0.32,
     screenShakeFactor: 0.35,
@@ -116,8 +127,10 @@ const MATERIALS: ASMRMaterial[] = [
     particleColors: ['#E1F5FE', '#B3E5FC', '#0288D1'],
     descKo: '시원한 물입니다. 찰랑거리는 파도와 함께 물을 튀겨보세요.',
     descEn: 'Stir and splash clear water for bubbling ASMR.',
-    // 찰랑: 빠른 진동(springK↑) + 낮은 감쇠(damping↓)로 많이 출렁임
-    blob: { springK: 0.3, damping: 0.09, reach: 0.7, squish: 1.0 },
+    // 찰랑: 빠른 진동(springK↑)·아주 낮은 감쇠(damping↓↓)로 오래 출렁이며 찰랑임
+    blob: { springK: 0.34, damping: 0.07, reach: 0.65, squish: 1.0, centerK: 0.14 },
+    // 넓적한 가로 타원 (수면처럼)
+    blobShape: { scale: 1.0, lobes: 0, lobeAmp: 0, aspectX: 1.16, aspectY: 0.88 },
     particleSpeed: 8.5,
     particleGravity: 0.45,
     screenShakeFactor: 0.26,
@@ -373,6 +386,7 @@ export default function ASMRSensoryScreen() {
             outerColor={activeMaterial.colors[0]}
             innerColor={activeMaterial.colors[1]}
             physics={activeMaterial.blob}
+            shape={activeMaterial.blobShape}
             resetKey={activeMaterial.id}
             onSqueezeStart={handleSqueezeStart}
             onSqueezeMove={handleSqueezeMove}
