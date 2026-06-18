@@ -16,36 +16,35 @@ import {
 } from '@shopify/react-native-skia';
 
 /**
- * 재질별 물리.
- * - springK: 형태 복원 속도(클수록 빠르게 단단히 돌아옴)
- * - damping: 감쇠(작을수록 오래 출렁출렁 — 물/슬라임, 클수록 즉시 멈춤 — 스펀지)
- * - reach: 표면이 손가락을 따라 늘어나는 정도(엿가락 스트레치)
- * - squish: 누를 때 전체 압축(<1 수축=스펀지, >1 부풂=크림)
- * - centerK: 몸체가 손가락을 따라가는 정도(작으면 남아서 늘어남=슬라임, 크면 미끄러져 따라옴=로션)
+ * 재질별 물리. Verlet 적분 + 거리-제약 이완(relaxation) 소프트바디 모델.
+ * (참고: anuraghazra/Verly.js의 "Jelly/Sticky Slime" 기법 — 저강성 제약 + 마찰)
+ * - stiffness: 제약 이완 강도 0~1 (낮을수록 흐물흐물=슬라임, 높을수록 단단=스펀지)
+ * - friction:  속도 유지 0.8~0.99 (높을수록 오래 출렁출렁 — 물/슬라임)
+ * - returnK:   중심 복귀 스프링 (낮으면 멀리 끌려가 늘어남=슬라임, 높으면 제자리=스펀지)
+ * - grabReach: 손가락이 끌어당기는 표면 범위(가우시안 폭)
  */
 export type BlobPhysics = {
-  springK: number;
-  damping: number;
-  reach: number;
-  squish: number;
-  centerK: number;
+  stiffness: number;
+  friction: number;
+  returnK: number;
+  grabReach: number;
 };
 
 /** 정지 상태의 외형 — 재질마다 실루엣을 다르게 한다 */
 export type BlobShape = {
-  scale: number; // 전체 크기 배수
-  lobes: number; // 둘레 돌기 개수 (스펀지=4 모서리, 크림=몽글)
-  lobeAmp: number; // 돌기 크기
-  aspectX: number; // 가로 비율 (물=넓적, 슬라임=세로 물방울)
-  aspectY: number; // 세로 비율
+  scale: number;
+  lobes: number;
+  lobeAmp: number;
+  aspectX: number;
+  aspectY: number;
 };
 
-type Point = { x: number; y: number; vx: number; vy: number; rx: number; ry: number };
+type Node = { x: number; y: number; ox: number; oy: number };
+type Stick = { a: number; b: number; len: number };
 
-const RING = 20; // 표면 제어점 개수 (lobes 최대 ~9까지 해상)
-const DT = 1;
-const NEIGHBOR_SMOOTH = 0.16;
-const CENTER_DAMP = 0.3;
+const RING = 20;
+const ITER = 6; // 제약 이완 반복 (많을수록 형태 견고)
+const PIN_PULL = 0.65; // 손가락 쪽으로 표면을 당기는 강도
 
 type Props = {
   size: number;
@@ -53,14 +52,12 @@ type Props = {
   innerColor: string;
   physics: BlobPhysics;
   shape: BlobShape;
-  /** 재질이 바뀌면 점들을 즉시 정지 외형으로 되돌린다 */
   resetKey: string;
   onSqueezeStart: (e: GestureResponderEvent) => void;
   onSqueezeMove: (e: GestureResponderEvent, g: PanResponderGestureState) => void;
   onRelease: () => void;
 };
 
-/** i번째 점의 정지 방향 벡터(돌기·종횡비 반영, 크기는 1 부근) */
 function restDir(i: number, shape: BlobShape): { rx: number; ry: number } {
   const a = (i / RING) * Math.PI * 2;
   const lobe = 1 + shape.lobeAmp * Math.cos(shape.lobes * a);
@@ -70,9 +67,39 @@ function restDir(i: number, shape: BlobShape): { rx: number; ry: number } {
   };
 }
 
+/** 노드/스틱 초기화 (중심 + 둘레 RING개). 모듈 스코프 순수 함수라 훅 의존성에서 자유롭다. */
+function buildSim(
+  s: BlobShape,
+  R: number,
+  cx0: number,
+  cy0: number,
+): { nodes: Node[]; sticks: Stick[] } {
+  const rr = R * s.scale;
+  const nodes: Node[] = [{ x: cx0, y: cy0, ox: cx0, oy: cy0 }];
+  for (let i = 0; i < RING; i++) {
+    const d = restDir(i, s);
+    const x = cx0 + d.rx * rr;
+    const y = cy0 + d.ry * rr;
+    nodes.push({ x, y, ox: x, oy: y });
+  }
+  const sticks: Stick[] = [];
+  const dist = (p: Node, q: Node) => Math.hypot(p.x - q.x, p.y - q.y);
+  for (let i = 0; i < RING; i++) {
+    const cur = i + 1;
+    const nxt = ((i + 1) % RING) + 1;
+    sticks.push({ a: cur, b: nxt, len: dist(nodes[cur], nodes[nxt]) }); // 막
+    sticks.push({ a: 0, b: cur, len: dist(nodes[0], nodes[cur]) }); // 스포크
+    const sh = ((i + 2) % RING) + 1;
+    sticks.push({ a: cur, b: sh, len: dist(nodes[cur], nodes[sh]) }); // 전단(형태 안정)
+  }
+  return { nodes, sticks };
+}
+
 /**
- * Skia 소프트바디 블롭. RING개 표면 점을 스프링+감쇠로 적분(semi-implicit Euler)하고
- * 이웃 평활화로 매끈한 곡면을 유지한다. 재질별 물리/외형으로 거동과 실루엣을 다르게 한다.
+ * Skia Verlet 소프트바디 블롭.
+ * 노드[0]=중심, [1..RING]=둘레. 둘레는 막(이웃 거리제약)으로, 중심과는 스포크로 묶고
+ * 매 프레임 Verlet 적분 후 제약을 ITER회 이완한다. 손가락은 가까운 표면을 끌어당기고
+ * 중심은 약한 복귀 스프링으로 제자리로 돌아오며 마찰만큼 출렁인다.
  */
 export function SoftBodyBlob({
   size,
@@ -94,81 +121,71 @@ export function SoftBodyBlob({
   const shapeRef = useRef(shape);
   shapeRef.current = shape;
 
-  const center = useRef({ x: cx0, y: cy0, vx: 0, vy: 0 });
   const finger = useRef<{ x: number; y: number } | null>(null);
 
-  const points = useRef<Point[]>(
-    Array.from({ length: RING }, (_, i) => {
-      const d = restDir(i, shape);
-      const rr = R * shape.scale;
-      return { x: cx0 + d.rx * rr, y: cy0 + d.ry * rr, vx: 0, vy: 0, rx: d.rx, ry: d.ry };
-    }),
-  );
+  const sim = useRef(buildSim(shape, R, cx0, cy0));
   const [, setTick] = useState(0);
 
-  // 재질 변경 시 즉시 정지 외형으로 복원
+  // 재질(=resetKey) 변경 시 정지 외형으로 재구성
   useEffect(() => {
-    center.current = { x: cx0, y: cy0, vx: 0, vy: 0 };
-    const rr = R * shapeRef.current.scale;
-    points.current.forEach((p, i) => {
-      const d = restDir(i, shapeRef.current);
-      p.rx = d.rx;
-      p.ry = d.ry;
-      p.x = cx0 + d.rx * rr;
-      p.y = cy0 + d.ry * rr;
-      p.vx = 0;
-      p.vy = 0;
-    });
+    sim.current = buildSim(shapeRef.current, R, cx0, cy0);
   }, [resetKey, cx0, cy0, R]);
 
-  // 물리 적분 루프 (JS rAF — 기존 파티클 루프와 동일 패턴)
   useEffect(() => {
     let raf: number;
     const step = () => {
-      const pts = points.current;
-      const c = center.current;
+      const { nodes, sticks } = sim.current;
+      const { stiffness, friction, returnK, grabReach } = phys.current;
       const f = finger.current;
-      const { springK, damping, reach, squish, centerK } = phys.current;
-      const scale = shapeRef.current.scale;
 
-      // 중심: 손가락으로 끌리거나 원점으로 복원 (관성 보존)
-      const ctx = f ? f.x : cx0;
-      const cty = f ? f.y : cy0;
-      c.vx += centerK * (ctx - c.x) - CENTER_DAMP * c.vx;
-      c.vy += centerK * (cty - c.y) - CENTER_DAMP * c.vy;
-      c.x += c.vx * DT;
-      c.y += c.vy * DT;
+      // 1) Verlet 적분 (관성 = 위치차 × 마찰)
+      for (let i = 0; i < nodes.length; i++) {
+        const p = nodes[i];
+        const vx = (p.x - p.ox) * friction;
+        const vy = (p.y - p.oy) * friction;
+        p.ox = p.x;
+        p.oy = p.y;
+        p.x += vx;
+        p.y += vy;
+      }
 
-      const grabbed = f !== null;
-      const rr = R * scale * (grabbed ? squish : 1);
-      for (let i = 0; i < pts.length; i++) {
-        const p = pts[i];
-        let tx = c.x + p.rx * rr;
-        let ty = c.y + p.ry * rr;
-        if (grabbed && f) {
-          // 손가락에 가까운 표면은 손가락을 거의 따라붙고, 넓은 호(弧)가 함께 끌려가
-          // 엿가락처럼 길게 늘어난다. 먼 쪽 표면은 남아 탄성 스트레치를 만든다.
-          const dx = f.x - tx;
-          const dy = f.y - ty;
+      // 2) 중심 복귀 스프링 (제자리로 돌아오려는 힘)
+      const c = nodes[0];
+      c.x += (cx0 - c.x) * returnK;
+      c.y += (cy0 - c.y) * returnK;
+
+      // 3) 손가락이 가까운 둘레 표면을 끌어당김 (엿가락 스트레치)
+      if (f) {
+        for (let i = 1; i <= RING; i++) {
+          const p = nodes[i];
+          const dx = f.x - p.x;
+          const dy = f.y - p.y;
           const d2 = dx * dx + dy * dy;
-          const infl = Math.exp(-d2 / (R * R * 1.9));
-          const pull = Math.min(0.95, infl * reach);
-          tx += dx * pull;
-          ty += dy * pull;
+          const infl = Math.exp(-d2 / (R * R * grabReach));
+          p.x += dx * infl * PIN_PULL;
+          p.y += dy * infl * PIN_PULL;
         }
-        p.vx += springK * (tx - p.x) - damping * p.vx;
-        p.vy += springK * (ty - p.y) - damping * p.vy;
-        p.x += p.vx * DT;
-        p.y += p.vy * DT;
       }
-      // 이웃 평활화 — 곡면 연속성 유지
-      for (let i = 0; i < pts.length; i++) {
-        const a = pts[(i - 1 + pts.length) % pts.length];
-        const b = pts[(i + 1) % pts.length];
-        const p = pts[i];
-        p.x += ((a.x + b.x) / 2 - p.x) * NEIGHBOR_SMOOTH;
-        p.y += ((a.y + b.y) / 2 - p.y) * NEIGHBOR_SMOOTH;
+
+      // 4) 거리 제약 이완 (막/스포크/전단) — 저강성일수록 흐물흐물
+      for (let k = 0; k < ITER; k++) {
+        for (let s = 0; s < sticks.length; s++) {
+          const st = sticks[s];
+          const a = nodes[st.a];
+          const b = nodes[st.b];
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const d = Math.hypot(dx, dy) || 0.0001;
+          const diff = ((st.len - d) / d) * 0.5 * stiffness;
+          const ox = dx * diff;
+          const oy = dy * diff;
+          a.x -= ox;
+          a.y -= oy;
+          b.x += ox;
+          b.y += oy;
+        }
       }
+
       setTick((t) => (t + 1) % 1000000);
       raf = requestAnimationFrame(step);
     };
@@ -182,13 +199,11 @@ export function SoftBodyBlob({
         onStartShouldSetPanResponder: () => true,
         onMoveShouldSetPanResponder: () => true,
         onPanResponderGrant: (e) => {
-          const { locationX, locationY } = e.nativeEvent;
-          finger.current = { x: locationX, y: locationY };
+          finger.current = { x: e.nativeEvent.locationX, y: e.nativeEvent.locationY };
           onSqueezeStart(e);
         },
         onPanResponderMove: (e, g) => {
-          const { locationX, locationY } = e.nativeEvent;
-          finger.current = { x: locationX, y: locationY };
+          finger.current = { x: e.nativeEvent.locationX, y: e.nativeEvent.locationY };
           onSqueezeMove(e, g);
         },
         onPanResponderRelease: () => {
@@ -203,29 +218,29 @@ export function SoftBodyBlob({
     [onSqueezeStart, onSqueezeMove, onRelease],
   );
 
-  // 현재 점들로 매끈한 닫힌 곡선(Catmull-Rom → 큐빅 베지어) 생성.
-  // 매 프레임 새 SkPath를 만들어 prop 참조가 바뀌게 해 Skia가 다시 그리도록 한다.
-  const pts = points.current;
-  const n = pts.length;
+  // 둘레 노드로 매끈한 닫힌 곡선(Catmull-Rom → 큐빅) 생성. 매 프레임 새 SkPath.
+  const nodes = sim.current.nodes;
   const path = Skia.Path.Make();
-  path.moveTo(pts[0].x, pts[0].y);
-  for (let i = 0; i < n; i++) {
-    const p0 = pts[(i - 1 + n) % n];
-    const p1 = pts[i];
-    const p2 = pts[(i + 1) % n];
-    const p3 = pts[(i + 2) % n];
+  const peri = (i: number) => nodes[(((i % RING) + RING) % RING) + 1];
+  const p0start = peri(0);
+  path.moveTo(p0start.x, p0start.y);
+  for (let i = 0; i < RING; i++) {
+    const a = peri(i - 1);
+    const b = peri(i);
+    const c2 = peri(i + 1);
+    const d = peri(i + 2);
     path.cubicTo(
-      p1.x + (p2.x - p0.x) / 6,
-      p1.y + (p2.y - p0.y) / 6,
-      p2.x - (p3.x - p1.x) / 6,
-      p2.y - (p3.y - p1.y) / 6,
-      p2.x,
-      p2.y,
+      b.x + (c2.x - a.x) / 6,
+      b.y + (c2.y - a.y) / 6,
+      c2.x - (d.x - b.x) / 6,
+      c2.y - (d.y - b.y) / 6,
+      c2.x,
+      c2.y,
     );
   }
   path.close();
 
-  const c = center.current;
+  const c = nodes[0];
 
   return (
     <View style={{ width: size, height: size }} {...pan.panHandlers}>
@@ -238,13 +253,7 @@ export function SoftBodyBlob({
               colors={[innerColor, outerColor]}
             />
           </Path>
-          {/* 젤리 하이라이트 */}
-          <Circle
-            cx={c.x - R * 0.32}
-            cy={c.y - R * 0.34}
-            r={R * 0.18}
-            color="rgba(255,255,255,0.5)"
-          />
+          <Circle cx={c.x - R * 0.32} cy={c.y - R * 0.34} r={R * 0.18} color="rgba(255,255,255,0.5)" />
         </Group>
       </Canvas>
     </View>
