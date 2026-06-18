@@ -204,7 +204,8 @@ export default function ASMRSensoryScreen() {
   const handleSqueezeStart = useCallback(
     (x: number, y: number) => {
       const mat = activeMaterialRef.current;
-      SoundManager.play(mat.soundKey);
+      // 접촉 루프 시작 — 누르는 동안 끊김 없이 이어지는 사운드
+      SoundManager.startLoop(mat.soundKey, 0.5);
       if (mat.id === 'sponge') Haptic.heavy();
       else Haptic.medium();
 
@@ -226,10 +227,12 @@ export default function ASMRSensoryScreen() {
       screenTranslateY.value = withTiming((rand() - 0.5) * 22 * mat.screenShakeFactor * shake, { duration: 50 });
       screenRotate.value = withTiming((rand() - 0.5) * 0.06 * mat.screenShakeFactor * shake, { duration: 50 });
 
+      // 문지르는 속도에 비례해 접촉 루프 볼륨을 키운다 (유기적 마찰음)
+      SoundManager.setLoopVolume(0.3 + Math.min(0.6, speed / 25));
+
       const now = nowMs();
       const throttleTime = mat.id === 'water' ? 65 : 110;
       if (speed > 1.5 && now - lastSoundTime.current > throttleTime) {
-        SoundManager.play(mat.soundKey);
         Haptic.light();
         // 빠르게 문지를수록 파티클을 더 튀긴다 (변형 강도와 감각 연동)
         const base = mat.id === 'water' ? 6 : 2;
@@ -241,6 +244,7 @@ export default function ASMRSensoryScreen() {
   );
 
   const handleRelease = useCallback(() => {
+    SoundManager.stopLoop();
     screenTranslateX.value = withSpring(0, { damping: 12, stiffness: 90 });
     screenTranslateY.value = withSpring(0, { damping: 12, stiffness: 90 });
     screenRotate.value = withSpring(0, { damping: 12, stiffness: 90 });
@@ -251,6 +255,7 @@ export default function ASMRSensoryScreen() {
     SoundManager.playBGM('zen');
     return () => {
       SoundManager.stopBGM();
+      SoundManager.stopLoop();
     };
   }, []);
 
@@ -298,6 +303,7 @@ export default function ASMRSensoryScreen() {
   }));
 
   const selectMaterial = (material: ASMRMaterial) => {
+    SoundManager.stopLoop(); // 재질 전환 시 이전 접촉 루프 정리
     SoundManager.play('button_tap');
     Haptic.light();
     setActiveMaterial(material);

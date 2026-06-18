@@ -91,6 +91,9 @@ class SoundManagerClass {
   private sounds: Map<SoundKey, Audio.Sound> = new Map();
   private bgm: Audio.Sound | null = null;
   private loaded = false;
+  // ASMR 접촉 루프 — 누르고 문지르는 동안 끊김 없이 이어지는 단일 인스턴스(피치/볼륨 변조)
+  private loopSound: Audio.Sound | null = null;
+  private loopKey: SoundKey | null = null;
 
   async preload(): Promise<void> {
     if (this.loaded) return;
@@ -141,6 +144,66 @@ class SoundManagerClass {
       await sound.replayAsync();
     } catch {
       /* ignore */
+    }
+  }
+
+  /**
+   * ASMR 접촉 루프 시작 — 누르고 문지르는 동안 단일 사운드를 반복 재생해 끊김 없이 이어준다.
+   * (드래그마다 one-shot을 쪼개 재생하면 오디오 채널 고갈·디지털 클리핑이 생긴다)
+   */
+  async startLoop(key: SoundKey, volume = 1): Promise<void> {
+    if (!useSettingsStore.getState().soundEnabled) return;
+    const vol = Math.max(0, Math.min(1, effectVolume() * volume));
+    if (this.loopKey === key && this.loopSound) {
+      try {
+        await this.loopSound.setStatusAsync({ shouldPlay: true, volume: vol });
+      } catch {
+        /* ignore */
+      }
+      return;
+    }
+    await this.stopLoop();
+    try {
+      const { sound } = await Audio.Sound.createAsync(SOUND_ASSETS[key], {
+        isLooping: true,
+        volume: vol,
+      });
+      this.loopSound = sound;
+      this.loopKey = key;
+      await sound.playAsync();
+    } catch (e) {
+      console.warn(`Failed to start loop: ${key}`, e);
+    }
+  }
+
+  /** 접촉 루프 볼륨 변조 (문지르는 속도/세기에 비례) */
+  async setLoopVolume(volume: number): Promise<void> {
+    if (!this.loopSound) return;
+    try {
+      await this.loopSound.setVolumeAsync(
+        Math.max(0, Math.min(1, effectVolume() * volume)),
+      );
+    } catch {
+      /* ignore */
+    }
+  }
+
+  /** 접촉 루프 종료 (손을 뗄 때) */
+  async stopLoop(): Promise<void> {
+    const s = this.loopSound;
+    this.loopSound = null;
+    this.loopKey = null;
+    if (s) {
+      try {
+        await s.stopAsync();
+      } catch {
+        /* ignore */
+      }
+      try {
+        await s.unloadAsync();
+      } catch {
+        /* ignore */
+      }
     }
   }
 
@@ -234,6 +297,7 @@ class SoundManagerClass {
     }
     this.sounds.clear();
     await this.stopBGM();
+    await this.stopLoop();
     this.loaded = false;
   }
 }
