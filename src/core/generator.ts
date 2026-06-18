@@ -15,7 +15,7 @@ export type GenParams = {
  * 같은 난이도에서 다른 시드로 재생성을 시도하는 최대 횟수.
  * 초과 시 빈 튜브를 보강해 솔버블을 구조적으로 보장한다.
  */
-const MAX_SEED_RETRIES = 3;
+const MAX_SEED_RETRIES = 6;
 
 export function generateLevel(params: GenParams, seedRetry = 0): Tube[] {
   const { filledTubes, emptyTubes, capacity, shuffleSteps, seed } = params;
@@ -56,11 +56,12 @@ export function generateLevel(params: GenParams, seedRetry = 0): Tube[] {
       t.layers.length === capacity &&
       t.layers.every((l) => l === t.layers[0]),
   ).length;
-  // 단색 튜브가 2개 이상이면 셔플이 충분히 섞이지 않은 것이므로 다른 시드로
-  // 재시도한다. 단, 재시도는 seedRetry 예산 안에서만 — 예산이 바닥나면
-  // 아래 솔버블 게이트(빈 튜브 보강 → 반드시 수렴)로 떨어뜨려 무한 재귀를 막는다.
+  // 시작 보드에 '가득 찬 단색(=이미 완성)' 튜브가 하나라도 있으면 셔플이 덜 된 것이라
+  // 다른 시드로 재시도한다(사용자 버그 리포트: 한 색이 가득 채워진 채로 스테이지가 나옴).
+  // 재시도는 seedRetry 예산 안에서만 — 예산이 바닥나면 아래 솔버블 게이트
+  // (빈 튜브 보강 → 반드시 수렴)로 떨어뜨려 무한 재귀를 막는다.
   if (
-    monochromeCount >= 2 &&
+    monochromeCount >= 1 &&
     shuffleSteps > 10 &&
     seedRetry < MAX_SEED_RETRIES
   ) {

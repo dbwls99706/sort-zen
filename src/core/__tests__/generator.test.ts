@@ -1,6 +1,7 @@
 import { generateLevel, GenParams } from '../generator';
 import { getDifficulty } from '../difficulty';
 import { isSolvable } from '../solver';
+import { isTubeComplete } from '../rules';
 import { DEFAULT_CAPACITY } from '../constants';
 
 function makeParams(overrides: Partial<GenParams> = {}): GenParams {
@@ -95,6 +96,22 @@ describe('generator', () => {
       const total = tubes.reduce((s, t) => s + t.layers.length, 0);
       expect(total).toBe(params.filledTubes * params.capacity);
       expect(isSolvable(tubes)).toBe(true);
+    }
+  });
+
+  // 버그 리포트: 한 색이 가득 채워진(=이미 완성) 튜브가 시작 보드에 나오던 문제.
+  // 충분한 셔플에서 시작 보드에 완성 튜브가 하나도 없어야 한다.
+  test('시작 보드에 완성(가득 단색) 튜브가 없다', () => {
+    for (let i = 0; i < 60; i++) {
+      const params = makeParams({
+        colors: 5,
+        filledTubes: 5,
+        emptyTubes: 2,
+        shuffleSteps: 50,
+        seed: `mono-${i}`,
+      });
+      const tubes = generateLevel(params);
+      expect(tubes.some((t) => isTubeComplete(t))).toBe(false);
     }
   });
 
