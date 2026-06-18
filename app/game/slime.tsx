@@ -55,8 +55,8 @@ const MATERIALS: ASMRMaterial[] = [
     particleColors: ['#E3FFB2', '#A1E8AF', '#7CE0A6'],
     descKo: '쫀득하고 말랑한 슬라임입니다. 쭉 늘리며 만져보세요.',
     descEn: 'Squeeze and stretch the gooey slime to relax.',
-    // 끈적: 낮은 표면장력(물컹 늘어남)·중간 부피보존·점성(곧 멈춤)
-    blob: { pressure: 0.35, tension: 0.12, friction: 0.84 },
+    // 끈적: 가장 낮은 표면장력(물컹)·점성으로 천천히
+    blob: { pressure: 0.3, tension: 0.08, friction: 0.86 },
     // 세로로 긴 물방울 실루엣
     blobShape: { scale: 1.0, lobes: 0, lobeAmp: 0, aspectX: 0.94, aspectY: 1.1 },
     particleSpeed: 3.5,
@@ -73,8 +73,8 @@ const MATERIALS: ASMRMaterial[] = [
     particleColors: ['#FFFFFF', '#E0F7FA', '#B2EBF2'],
     descKo: '몽글몽글하고 푹신한 크림입니다. 만지면 부풀어 오릅니다.',
     descEn: 'Squish and spread the fluffy shaving cream.',
-    // 푹신: 낮은 부피보존(쉽게 눌림)·부드러운 막·빨리 안정
-    blob: { pressure: 0.3, tension: 0.14, friction: 0.8 },
+    // 푹신: 중간 부피보존·부드러운 막·빨리 안정(부푼다)
+    blob: { pressure: 0.45, tension: 0.2, friction: 0.78 },
     // 몽글몽글 부푼 구름 실루엣
     blobShape: { scale: 1.12, lobes: 8, lobeAmp: 0.07, aspectX: 1, aspectY: 1 },
     particleSpeed: 1.8,
@@ -91,8 +91,8 @@ const MATERIALS: ASMRMaterial[] = [
     particleColors: ['#FFF0F5', '#F8BBD0', '#F1A7C4'],
     descKo: '부드럽고 매끄러운 로션입니다. 화면 전체를 미끄러지듯 문지르세요.',
     descEn: 'Rub the silky smooth lotion for calming sounds.',
-    // 매끈한 유체: 중간 부피보존·매끈한 막·중마찰
-    blob: { pressure: 0.4, tension: 0.18, friction: 0.85 },
+    // 매끈·탱탱·미끌: 높은 부피보존·매끈한 막
+    blob: { pressure: 0.55, tension: 0.3, friction: 0.82 },
     // 매끈한 가로 타원
     blobShape: { scale: 1.0, lobes: 0, lobeAmp: 0, aspectX: 1.12, aspectY: 0.93 },
     particleSpeed: 2.8,
@@ -109,8 +109,8 @@ const MATERIALS: ASMRMaterial[] = [
     particleColors: ['#FFF9C4', '#FFF59D', '#FBC02D'],
     descKo: '폭신한 스펀지입니다. 꽉 쥐어 짜면 강하게 수축했다가 튕겨납니다.',
     descEn: 'Squeeze the porous sponge and enjoy the crackles.',
-    // 단단: 높은 부피보존+높은 막강성(형태 유지·빨리 튕겨 복원)·낮은 마찰
-    blob: { pressure: 0.7, tension: 0.5, friction: 0.74 },
+    // 단단: 높은 부피보존+가장 높은 막강성(형태 유지·즉시 튕겨 복원)·낮은 마찰
+    blob: { pressure: 0.85, tension: 0.65, friction: 0.7 },
     // 모서리 있는 사각(스퀴클) 실루엣
     blobShape: { scale: 0.96, lobes: 4, lobeAmp: 0.14, aspectX: 1, aspectY: 1 },
     particleSpeed: 7.0,
@@ -127,8 +127,8 @@ const MATERIALS: ASMRMaterial[] = [
     particleColors: ['#E1F5FE', '#B3E5FC', '#0288D1'],
     descKo: '시원한 물입니다. 찰랑거리는 파도와 함께 물을 튀겨보세요.',
     descEn: 'Stir and splash clear water for bubbling ASMR.',
-    // 찰랑: 높은 부피보존(비압축)+강한 표면장력(둥글게 복원)·높은 마찰(오래 출렁)
-    blob: { pressure: 0.85, tension: 0.4, friction: 0.9 },
+    // 찰랑: 최고 부피보존(비압축)+강한 표면장력(둥글게 복원)·높은 마찰(오래 출렁)
+    blob: { pressure: 1.0, tension: 0.55, friction: 0.93 },
     // 넓적한 가로 타원 (수면처럼)
     blobShape: { scale: 1.0, lobes: 0, lobeAmp: 0, aspectX: 1.16, aspectY: 0.88 },
     particleSpeed: 8.5,
@@ -241,7 +241,10 @@ export default function ASMRSensoryScreen() {
       if (distance > 12 && now - lastSoundTime.current > throttleTime) {
         SoundManager.play(mat.soundKey);
         Haptic.light();
-        spawnParticles(pageX, pageY, mat.id === 'water' ? 6 : 2);
+        // 빠르게 문지를수록 파티클을 더 튀긴다 (변형 강도와 감각 연동)
+        const speed = Math.sqrt(g.vx * g.vx + g.vy * g.vy);
+        const base = mat.id === 'water' ? 6 : 2;
+        spawnParticles(pageX, pageY, base + Math.min(8, Math.round(speed * 6)));
         lastSoundTime.current = now;
       }
     },

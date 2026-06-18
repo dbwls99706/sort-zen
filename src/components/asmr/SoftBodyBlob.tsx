@@ -42,10 +42,13 @@ export type BlobShape = {
 type Node = { x: number; y: number; ox: number; oy: number };
 
 const RING = 28; // 둘레 점 개수 (유체 표현·손가락 충돌 해상)
-const ITER = 4; // 막 스프링 이완 반복
+const ITER = 6; // 막 스프링 이완 반복 (관통/자기교차 방지)
 const ANCHOR_K = 0.05; // 무게중심을 제자리로 되돌리는 약한 힘
 const FINGER_R_FACTOR = 0.62; // 손끝(고체 원) 반경 = R * 이 값
-const FINGER_PUSH = 0.85; // 손끝 밖으로 표면을 밀어내는 강도
+const FINGER_PUSH = 0.85; // 손끝 밖으로 표면을 밀어내는 비율
+const MAX_FINGER_DISP = 0.13; // 프레임당 손가락 변위 상한 (R 대비) — 점 관통/곡선 깨짐 방지
+const PRESS_SCALE = 0.02; // 가스압 → 변 법선 힘 스케일
+const MAX_PRESS_MULT = 3; // 가스압 폭주 클램프 (압축 시 발산 방지)
 
 type Props = {
   size: number;
@@ -156,7 +159,9 @@ export function SoftBodyBlob({
         p.y += vy;
       }
 
-      // 2) 손가락(고체 원) 충돌 — 원 안의 표면점을 밖으로 밀어 눌린 자국을 만든다 (멀티터치)
+      // 2) 손가락(고체 원) 충돌 — 원 안의 표면점을 밖으로 밀어 눌린 자국을 만든다 (멀티터치).
+      //    프레임당 변위를 상한으로 막아 점이 이웃을 관통(자기교차)해 곡선이 깨지는 것을 방지.
+      const maxDisp = R * MAX_FINGER_DISP;
       for (let k = 0; k < fs.length; k++) {
         const f = fs[k];
         for (let i = 0; i < n; i++) {
@@ -165,9 +170,10 @@ export function SoftBodyBlob({
           const dy = p.y - f.y;
           const d = Math.hypot(dx, dy);
           if (d < fingerR && d > 0.001) {
-            const push = ((fingerR - d) / d) * FINGER_PUSH;
-            p.x += dx * push;
-            p.y += dy * push;
+            const disp = Math.min((fingerR - d) * FINGER_PUSH, maxDisp);
+            const s = disp / d;
+            p.x += dx * s;
+            p.y += dy * s;
           }
         }
       }
@@ -190,8 +196,33 @@ export function SoftBodyBlob({
         }
       }
 
-      // 4) 부피 보존(압력) — 무게중심 기준 방사상으로 부피 오차를 되돌린다.
-      //    한쪽을 누르면 면적이 줄고 → 전체가 바깥으로 밀려 다른 곳이 부푼다.
+      // 4) 부피 보존(가스압) — 변 법선 방향으로 P=nRT/V (Matyka pressurized soft body).
+      //    누른 변은 그대로 두고 빈 변들만 법선으로 부풀어 사실적인 옆 bulge가 생긴다.
+      let A2 = 0;
+      for (let i = 0; i < n; i++) {
+        const a = nodes[i];
+        const b = nodes[(i + 1) % n];
+        A2 += a.x * b.y - b.x * a.y;
+      }
+      const sign = A2 >= 0 ? 1 : -1;
+      const invArea = 1 / (Math.abs(A2 * 0.5) || 1);
+      const pGas = Math.min(pressure * restArea * invArea, pressure * MAX_PRESS_MULT);
+      for (let i = 0; i < n; i++) {
+        const a = nodes[i];
+        const b = nodes[(i + 1) % n];
+        const ex = b.x - a.x;
+        const ey = b.y - a.y;
+        const el = Math.hypot(ex, ey) || 0.0001;
+        const nx = (sign * ey) / el; // 외향 법선
+        const ny = (-sign * ex) / el;
+        const fpush = pGas * el * PRESS_SCALE;
+        a.x += nx * fpush;
+        a.y += ny * fpush;
+        b.x += nx * fpush;
+        b.y += ny * fpush;
+      }
+
+      // 5) 무게중심을 제자리로 — 떠다니지 않게 약하게 고정
       let cx = 0;
       let cy = 0;
       for (let i = 0; i < n; i++) {
@@ -200,16 +231,6 @@ export function SoftBodyBlob({
       }
       cx /= n;
       cy /= n;
-      const area = Math.abs(polygonArea(nodes)) || 1;
-      const areaErr = (restArea - area) / restArea; // >0: 압축됨
-      const push = areaErr * pressure;
-      for (let i = 0; i < n; i++) {
-        const p = nodes[i];
-        p.x += (p.x - cx) * push;
-        p.y += (p.y - cy) * push;
-      }
-
-      // 5) 무게중심을 제자리로 — 떠다니지 않게 약하게 고정
       const ax = (cx0 - cx) * ANCHOR_K;
       const ay = (cy0 - cy) * ANCHOR_K;
       if (ax || ay) {
