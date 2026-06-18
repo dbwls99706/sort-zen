@@ -150,22 +150,34 @@ export function TubeComponent({
 
   const layersCount = tube.layers.length;
   const topIndex = layersCount - 1;
-  const underLayers = useMemo(
-    () => tube.layers.slice(0, topIndex),
-    [tube.layers, topIndex],
-  );
+
+  // 연속된 같은 색 레이어를 하나의 런(블록)으로 묶는다 — 같은 색끼리는 칸 경계 없이
+  // 한 덩어리로 보이게 한다(사용자 요청). start=바닥부터의 시작 인덱스, count=레이어 수.
+  const runs = useMemo(() => {
+    const out: { colorId: number; start: number; count: number }[] = [];
+    for (let i = 0; i < tube.layers.length; i++) {
+      const c = tube.layers[i];
+      const last = out[out.length - 1];
+      if (last && last.colorId === c) last.count += 1;
+      else out.push({ colorId: c, start: i, count: 1 });
+    }
+    return out;
+  }, [tube.layers]);
+  // 최상단 런은 출렁이는 메니스커스로 그리고, 그 아래 런들만 평평한 블록으로 그린다.
+  const topRunStart = runs.length > 0 ? runs[runs.length - 1].start : 0;
+  const underRuns = runs.slice(0, -1);
 
   // 출렁이는 최상단 '한 레이어'만 그리는 메니스커스.
   // 예전엔 바닥(TUBE_HEIGHT)까지 채워 액체 기둥 전체를 top 색으로 덮어버려,
   // 아래 레이어들이 가려져 꽉 찬 튜브가 한 색으로 통일돼 보이던 버그가 있었다.
-  // 이제 top 레이어 밴드([y, y+LAYER_HEIGHT])만 채운다.
+  // 이제 최상단 '런'(연속 같은 색) 밴드만 채운다.
   const wavyTopPath = useDerivedValue(() => {
     const path = surfacePath;
     path.reset();
     if (layersCount === 0) return path;
 
     const y = TUBE_HEIGHT - layersCount * LAYER_HEIGHT;
-    const bandBottom = y + LAYER_HEIGHT; // top 레이어 밑면(다음 레이어와의 경계)
+    const bandBottom = TUBE_HEIGHT - topRunStart * LAYER_HEIGHT; // 최상단 런 밑면
     const left = 5;
     const right = TUBE_WIDTH - 5;
     const stepWidth = (right - left) / WAVE_STEPS;
@@ -216,34 +228,35 @@ export function TubeComponent({
               color={theme.tubeBackground}
             />
 
-            {/* 아래쪽 평평한 레이어들 (세로 그라데이션) */}
-            {underLayers.map((colorId, index) => {
-              const y = TUBE_HEIGHT - (index + 1) * LAYER_HEIGHT;
-              const base = theme.colors[colorId % theme.colors.length];
+            {/* 아래쪽 런들 — 같은 색은 한 블록으로 묶어 칸 경계 없이 그린다 */}
+            {underRuns.map((run) => {
+              const top = TUBE_HEIGHT - (run.start + run.count) * LAYER_HEIGHT;
+              const h = run.count * LAYER_HEIGHT;
+              const base = theme.colors[run.colorId % theme.colors.length];
               return (
                 <RoundedRect
-                  key={`${tube.id}-${index}`}
+                  key={`${tube.id}-r${run.start}`}
                   x={5}
-                  y={y - 1}
+                  y={top - 1}
                   width={TUBE_WIDTH - 10}
-                  height={LAYER_HEIGHT + 2}
+                  height={h + 2}
                   r={0}
                 >
                   <LinearGradient
-                    start={vec(0, y)}
-                    end={vec(0, y + LAYER_HEIGHT)}
+                    start={vec(0, top)}
+                    end={vec(0, top + h)}
                     colors={[lighten(base, 0.22), base, darken(base, 0.06)]}
                   />
                 </RoundedRect>
               );
             })}
 
-            {/* 출렁이는 최상단 레이어 */}
+            {/* 출렁이는 최상단 런 (연속 같은 색을 한 덩어리로) */}
             {layersCount > 0 && (
               <Path path={wavyTopPath}>
                 <LinearGradient
                   start={vec(0, TUBE_HEIGHT - layersCount * LAYER_HEIGHT)}
-                  end={vec(0, TUBE_HEIGHT - (layersCount - 1) * LAYER_HEIGHT)}
+                  end={vec(0, TUBE_HEIGHT - topRunStart * LAYER_HEIGHT)}
                   colors={[lighten(topColor, 0.28), topColor]}
                 />
               </Path>
