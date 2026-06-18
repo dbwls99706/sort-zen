@@ -8,6 +8,8 @@ import { SubscriptionManager } from '../src/iap/SubscriptionManager';
 import { SoundManager } from '../src/audio/SoundManager';
 import { Haptic } from '../src/utils/haptics';
 import { AdBanner } from '../src/ads/banner';
+import { AdManager } from '../src/ads/AdManager';
+import { REWARDED_COIN_AMOUNT } from '../src/core/constants';
 import { useTranslation } from '../src/i18n';
 
 export default function ShopScreen() {
@@ -16,6 +18,8 @@ export default function ShopScreen() {
   const { t } = useTranslation();
   const isPremium = useUserStore((s) => s.isPremium);
   const premiumType = useUserStore((s) => s.premiumType);
+  const coins = useUserStore((s) => s.coins);
+  const addCoins = useUserStore((s) => s.addCoins);
 
   const [prices, setPrices] = React.useState({
     monthly: '₩2,500',
@@ -47,6 +51,23 @@ export default function ShopScreen() {
     SoundManager.play('button_tap');
     Haptic.light();
     router.back();
+  };
+
+  // 리워드 광고 시청 → 코인 충전 (힌트/도움에 사용). 정책상 구독자에게도 자율 제공.
+  const handleWatchAdForCoins = () => {
+    SoundManager.play('button_tap');
+    Haptic.light();
+    AdManager.showRewarded(() => {
+      addCoins(REWARDED_COIN_AMOUNT);
+      SoundManager.play('coin');
+    }).then((earned) => {
+      if (earned) {
+        Haptic.success();
+        Alert.alert(t('coins_earned', { n: REWARDED_COIN_AMOUNT }));
+      } else {
+        Alert.alert(t('ad_not_ready'));
+      }
+    });
   };
 
   const handleBuyLifetime = async () => {
@@ -85,6 +106,24 @@ export default function ShopScreen() {
         </Pressable>
         <Text style={[styles.title, { color: theme.text }]}>{t('shop')}</Text>
         <View style={styles.spacer} />
+      </View>
+
+      {/* 무료 코인 — 리워드 광고로 코인을 충전해 힌트 등에 사용 (구독자에게도 자율 제공) */}
+      <View style={[styles.card, { backgroundColor: theme.surface }]}>
+        <Text style={[styles.cardTitle, { color: theme.text }]}>
+          {t('free_coins')} · 🪙 {coins}
+        </Text>
+        <Text style={[styles.cardDesc, { color: theme.textSecondary }]}>
+          {t('free_coins_desc')}
+        </Text>
+        <Pressable
+          style={[styles.buyButton, { backgroundColor: theme.accent }]}
+          onPress={handleWatchAdForCoins}
+        >
+          <Text style={styles.buyButtonText}>
+            {t('watch_ad_coins', { n: REWARDED_COIN_AMOUNT })}
+          </Text>
+        </Pressable>
       </View>
 
       {isPremium ? (
