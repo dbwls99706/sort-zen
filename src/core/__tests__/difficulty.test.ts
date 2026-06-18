@@ -3,46 +3,49 @@ import {
   DEFAULT_CAPACITY,
   DEFAULT_EMPTY_TUBES,
   MAX_COLORS,
+  MIN_COLORS,
   MAX_SHUFFLE_STEPS,
 } from '../constants';
 
-describe('getDifficulty', () => {
-  test('레벨 1은 3색으로 시작한다', () => {
-    const params = getDifficulty(1);
-    expect(params.colors).toBe(3);
-    expect(params.filledTubes).toBe(3);
-  });
-
-  test('레벨이 올라갈수록 색상이 증가한다', () => {
-    const low = getDifficulty(10);
-    const high = getDifficulty(200);
-    expect(high.colors).toBeGreaterThan(low.colors);
-  });
-
-  test('색상은 MAX_COLORS를 넘지 않는다', () => {
-    const params = getDifficulty(9999);
-    expect(params.colors).toBeLessThanOrEqual(MAX_COLORS);
-  });
-
-  test('용량은 항상 DEFAULT_CAPACITY이다', () => {
-    const params = getDifficulty(50);
-    expect(params.capacity).toBe(DEFAULT_CAPACITY);
-  });
-
-  test('빈 튜브는 모든 레벨에서 최소 2개다 (T147 — 솔버블 보장)', () => {
-    for (const level of [1, 50, 100, 150, 300, 9999]) {
-      expect(getDifficulty(level).emptyTubes).toBe(DEFAULT_EMPTY_TUBES);
+// 난이도는 스테이지에 비례 증가하지 않고 매 판 랜덤화된다(사용자 요청).
+// 따라서 단조 증가가 아니라 "유효 범위 + 무작위성"을 검증한다.
+describe('getDifficulty (랜덤 난이도)', () => {
+  test('색상 수는 4 ~ MAX_COLORS 범위이고 filledTubes와 일치한다', () => {
+    for (let i = 0; i < 100; i++) {
+      const p = getDifficulty(1 + i);
+      expect(p.colors).toBeGreaterThanOrEqual(MIN_COLORS + 1);
+      expect(p.colors).toBeLessThanOrEqual(MAX_COLORS);
+      expect(p.filledTubes).toBe(p.colors);
     }
   });
 
-  test('shuffleSteps는 레벨에 비례한다', () => {
-    const low = getDifficulty(10);
-    const high = getDifficulty(100);
-    expect(high.shuffleSteps).toBeGreaterThan(low.shuffleSteps);
+  test('난이도가 레벨에 묶이지 않고 무작위다 (같은 레벨도 매번 다름)', () => {
+    const seen = new Set<number>();
+    for (let i = 0; i < 50; i++) seen.add(getDifficulty(5).colors);
+    expect(seen.size).toBeGreaterThan(1);
   });
 
-  test('shuffleSteps는 포화 캡을 넘지 않는다 (T147 — 생성 지연 방지)', () => {
-    expect(getDifficulty(9999).shuffleSteps).toBe(MAX_SHUFFLE_STEPS);
+  test('빈 튜브는 최소 2개이며 가끔 3개로 변주된다', () => {
+    const counts = new Set<number>();
+    for (let i = 0; i < 200; i++) {
+      const e = getDifficulty(1).emptyTubes;
+      expect(e).toBeGreaterThanOrEqual(DEFAULT_EMPTY_TUBES);
+      expect(e).toBeLessThanOrEqual(DEFAULT_EMPTY_TUBES + 1);
+      counts.add(e);
+    }
+    expect(counts.size).toBeGreaterThan(1); // 2와 3 모두 등장
+  });
+
+  test('용량은 항상 DEFAULT_CAPACITY이다', () => {
+    expect(getDifficulty(50).capacity).toBe(DEFAULT_CAPACITY);
+  });
+
+  test('shuffleSteps는 양수이고 포화 캡을 넘지 않는다', () => {
+    for (let i = 0; i < 100; i++) {
+      const s = getDifficulty(1 + i).shuffleSteps;
+      expect(s).toBeGreaterThan(0);
+      expect(s).toBeLessThanOrEqual(MAX_SHUFFLE_STEPS);
+    }
   });
 });
 
