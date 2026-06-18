@@ -71,6 +71,7 @@ export function ClearModal({
 
   const cardScale = useSharedValue(0.7);
   const cardOpacity = useSharedValue(0);
+  const titleScale = useSharedValue(0.5);
   const s0 = useSharedValue(0);
   const s1 = useSharedValue(0);
   const s2 = useSharedValue(0);
@@ -80,6 +81,11 @@ export function ClearModal({
     if (visible) {
       cardOpacity.value = withTiming(1, { duration: 180 });
       cardScale.value = withSpring(1, { damping: 11, stiffness: 180 });
+      // 제목이 별보다 먼저 통통 튀어 올라 "클리어!" 순간을 강조한다.
+      titleScale.value = withDelay(
+        90,
+        withSpring(1, { damping: 7, stiffness: 220 }),
+      );
       starsAnim.forEach((s, i) => {
         // 획득한 별만 통통 튀고, 미획득 별은 흐리게 바로 표시
         s.value =
@@ -93,15 +99,20 @@ export function ClearModal({
     } else {
       cardOpacity.value = 0;
       cardScale.value = 0.7;
+      titleScale.value = 0.5;
       starsAnim.forEach((s) => {
         s.value = 0;
       });
     }
-  }, [visible, stars, cardOpacity, cardScale, s0, s1, s2]);
+  }, [visible, stars, cardOpacity, cardScale, titleScale, s0, s1, s2]);
 
   const cardStyle = useAnimatedStyle(() => ({
     opacity: cardOpacity.value,
     transform: [{ scale: cardScale.value }],
+  }));
+
+  const titleStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: titleScale.value }],
   }));
 
   const starStyles = [
@@ -149,10 +160,10 @@ export function ClearModal({
               </Animated.Text>
             ))}
           </View>
-          <Text style={[styles.title, { color: theme.text }]}>
+          <Animated.Text style={[styles.title, titleStyle, { color: theme.text }]}>
             {mode === 'classic' ? `${t('level')} ${level}` : t('zen')}{' '}
             {t('clear')}
-          </Text>
+          </Animated.Text>
           <Text style={[styles.moves, { color: theme.textSecondary }]}>
             {moveCount} {t('moves')}
           </Text>

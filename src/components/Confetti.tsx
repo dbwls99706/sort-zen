@@ -10,9 +10,9 @@ import {
 } from 'react-native-reanimated';
 import { prand } from '../utils/prand';
 
-const BURST_DURATION_MS = 1500;
-const PIECE_COUNT = 22;
-const FADE_START = 0.7;
+const BURST_DURATION_MS = 2300;
+const PIECE_COUNT = 50;
+const FADE_START = 0.78;
 
 type Piece = {
   angle: number;
@@ -21,6 +21,8 @@ type Piece = {
   rot: number;
   size: number;
   color: string;
+  flutterFreq: number;
+  flutterPhase: number;
 };
 
 type ConfettiProps = {
@@ -45,7 +47,14 @@ function ConfettiPiece({
     const x = originX + Math.cos(piece.angle) * piece.speed * t;
     const y =
       originY + Math.sin(piece.angle) * piece.speed * t + piece.gravity * t * t;
-    return [{ translateX: x }, { translateY: y }, { rotate: piece.rot * t }];
+    // 종이가 펄럭이며 뒤집히는 느낌 — scaleX를 진동시켜 입체감을 준다.
+    const flutter = Math.cos(piece.flutterPhase + t * piece.flutterFreq);
+    return [
+      { translateX: x },
+      { translateY: y },
+      { rotate: piece.rot * t },
+      { scaleX: flutter },
+    ];
   });
 
   const opacity = useDerivedValue(() => {
@@ -81,12 +90,15 @@ export function Confetti({ colors, originX, originY }: ConfettiProps) {
   const pieces = useMemo<Piece[]>(
     () =>
       Array.from({ length: PIECE_COUNT }, (_, i) => ({
-        angle: -Math.PI / 2 + (prand(i, 1) - 0.5) * Math.PI * 1.2,
-        speed: 120 + prand(i, 2) * 170,
-        gravity: 220 + prand(i, 3) * 140,
-        rot: (prand(i, 4) * 4 - 2) * Math.PI,
-        size: 7 + prand(i, 5) * 6,
+        // 위쪽으로 넓게(거의 반원) 분사해 카드 주변·머리 위까지 색종이가 흩날린다.
+        angle: -Math.PI / 2 + (prand(i, 1) - 0.5) * Math.PI * 1.7,
+        speed: 160 + prand(i, 2) * 320,
+        gravity: 320 + prand(i, 3) * 220,
+        rot: (prand(i, 4) * 6 - 3) * Math.PI,
+        size: 8 + prand(i, 5) * 8,
         color: colors[i % colors.length],
+        flutterFreq: 14 + prand(i, 6) * 16,
+        flutterPhase: prand(i, 7) * Math.PI * 2,
       })),
     [colors],
   );

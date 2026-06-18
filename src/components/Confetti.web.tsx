@@ -11,9 +11,9 @@ import { prand } from '../utils/prand';
 
 // 웹 전용: Skia Group/RoundedRect 대신 Reanimated Animated.View로 동일한
 // 발사각/속도/중력/페이드 물리를 재현한다(웹에서도 reanimated 워클릿 동작).
-const BURST_DURATION_MS = 1500;
-const PIECE_COUNT = 22;
-const FADE_START = 0.7;
+const BURST_DURATION_MS = 2300;
+const PIECE_COUNT = 50;
+const FADE_START = 0.78;
 
 type Piece = {
   angle: number;
@@ -22,6 +22,8 @@ type Piece = {
   rot: number;
   size: number;
   color: string;
+  flutterFreq: number;
+  flutterPhase: number;
 };
 
 type ConfettiProps = {
@@ -48,12 +50,14 @@ function ConfettiPiece({
       originY + Math.sin(piece.angle) * piece.speed * t + piece.gravity * t * t;
     const opacity =
       t < FADE_START ? 1 : Math.max(0, 1 - (t - FADE_START) / (1 - FADE_START));
+    const flutter = Math.cos(piece.flutterPhase + t * piece.flutterFreq);
     return {
       opacity,
       transform: [
         { translateX: x },
         { translateY: y },
         { rotate: `${piece.rot * t}rad` },
+        { scaleX: flutter },
       ],
     };
   });
@@ -83,12 +87,14 @@ export function Confetti({ colors, originX, originY }: ConfettiProps) {
   const pieces = useMemo<Piece[]>(
     () =>
       Array.from({ length: PIECE_COUNT }, (_, i) => ({
-        angle: -Math.PI / 2 + (prand(i, 1) - 0.5) * Math.PI * 1.2,
-        speed: 120 + prand(i, 2) * 170,
-        gravity: 220 + prand(i, 3) * 140,
-        rot: (prand(i, 4) * 4 - 2) * Math.PI,
-        size: 7 + prand(i, 5) * 6,
+        angle: -Math.PI / 2 + (prand(i, 1) - 0.5) * Math.PI * 1.7,
+        speed: 160 + prand(i, 2) * 320,
+        gravity: 320 + prand(i, 3) * 220,
+        rot: (prand(i, 4) * 6 - 3) * Math.PI,
+        size: 8 + prand(i, 5) * 8,
         color: colors[i % colors.length],
+        flutterFreq: 14 + prand(i, 6) * 16,
+        flutterPhase: prand(i, 7) * Math.PI * 2,
       })),
     [colors],
   );
