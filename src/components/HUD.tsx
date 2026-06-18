@@ -30,32 +30,38 @@ export function HUD({
 
   return (
     <View style={[styles.container, { backgroundColor: theme.surface }]}>
+      {/* 좌측: 레벨/이동 + 코인. 우측 버튼군과 분리해 겹침을 원천 차단한다. */}
       <View style={styles.left}>
-        <Text style={[styles.levelText, { color: theme.text }]}>
-          {mode === 'classic' ? `Lv.${level}` : t('zen')}
-        </Text>
-        <Text style={[styles.moveText, { color: theme.textSecondary }]}>
-          {moveCount} {t('moves')}
-        </Text>
-      </View>
-
-      <View style={styles.center}>
-        <Text style={[styles.coinText, { color: theme.accent }]}>
+        <View style={styles.levelBlock}>
+          <Text
+            style={[styles.levelText, { color: theme.text }]}
+            numberOfLines={1}
+          >
+            {mode === 'classic' ? `Lv.${level}` : t('zen')}
+          </Text>
+          <Text style={[styles.moveText, { color: theme.textSecondary }]}>
+            {moveCount} {t('moves')}
+          </Text>
+        </View>
+        <Text
+          style={[styles.coinText, { color: theme.accent }]}
+          numberOfLines={1}
+        >
           🪙 {coins}
         </Text>
       </View>
 
       <View style={styles.right}>
-        <Pressable onPress={onHint} style={styles.button}>
+        <Pressable onPress={onHint} style={styles.button} hitSlop={6}>
           <HintIcon color={theme.text} />
         </Pressable>
-        <Pressable onPress={onUndo} style={styles.button}>
+        <Pressable onPress={onUndo} style={styles.button} hitSlop={6}>
           <UndoIcon color={theme.text} />
         </Pressable>
-        <Pressable onPress={onReset} style={styles.button}>
+        <Pressable onPress={onReset} style={styles.button} hitSlop={6}>
           <ResetIcon color={theme.text} />
         </Pressable>
-        <Pressable onPress={onPause} style={styles.button}>
+        <Pressable onPress={onPause} style={styles.button} hitSlop={6}>
           <PauseIcon color={theme.text} />
         </Pressable>
       </View>
@@ -74,17 +80,21 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(0,0,0,0.1)',
   },
   left: {
-    flex: 1,
-  },
-  center: {
-    flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 14,
+    flexShrink: 1,
+    minWidth: 0,
+    marginRight: 12,
+  },
+  levelBlock: {
+    flexShrink: 1,
+    minWidth: 0,
   },
   right: {
-    flex: 1,
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    gap: 8,
+    gap: 6,
   },
   levelText: {
     fontSize: 18,
