@@ -416,19 +416,21 @@ export default function GameScreen() {
               </View>
             );
           })}
-        </View>
 
-        {animatingPour && (
-          <PourAnimation
-            fromX={animatingPour.fromX}
-            fromY={animatingPour.fromY}
-            toX={animatingPour.toX}
-            toY={animatingPour.toY}
-            color={animatingPour.color}
-            scale={scale}
-            onComplete={handlePourLand}
-          />
-        )}
+          {/* 붓기 스트림은 튜브 onLayout과 같은 좌표계(tubeGrid)에 그려야 한다.
+              boardContainer에 두면 tubeGrid가 중앙 정렬된 만큼 위로 어긋나 스트림이 화면 상단에 뜬다. */}
+          {animatingPour && (
+            <PourAnimation
+              fromX={animatingPour.fromX}
+              fromY={animatingPour.fromY}
+              toX={animatingPour.toX}
+              toY={animatingPour.toY}
+              color={animatingPour.color}
+              scale={scale}
+              onComplete={handlePourLand}
+            />
+          )}
+        </View>
       </View>
 
       <StuckModal
