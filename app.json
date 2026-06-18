@@ -53,7 +53,8 @@
         {
           "appId": "0"
         }
-      ]
+      ],
+      "expo-font"
     ],
     "extra": {
       "router": {
