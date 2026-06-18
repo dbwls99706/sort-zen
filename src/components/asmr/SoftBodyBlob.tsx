@@ -1,10 +1,14 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import {
   View,
   PanResponder,
   type GestureResponderEvent,
   type PanResponderGestureState,
 } from 'react-native';
+import {
+  useSharedValue,
+  useDerivedValue,
+} from 'react-native-reanimated';
 import {
   Canvas,
   Path,
@@ -114,6 +118,15 @@ function buildSim(s: BlobShape, R: number, cx0: number, cy0: number): Sim {
   return { nodes, restLen, restArea: Math.abs(polygonArea(nodes)), restOffX, restOffY };
 }
 
+/** 둘레 좌표를 평탄 배열 [x0,y0,x1,y1,...]로 (공유값 → UI 스레드 렌더용) */
+function flattenNodes(nodes: Node[]): number[] {
+  const out: number[] = [];
+  for (let i = 0; i < nodes.length; i++) {
+    out.push(nodes[i].x, nodes[i].y);
+  }
+  return out;
+}
+
 /** 손가락 좌표 배열 추출 (멀티터치 — 엄지 두 개 쭈그리기 지원) */
 function readFingers(e: GestureResponderEvent): { x: number; y: number }[] {
   const touches = e.nativeEvent.touches;
@@ -147,11 +160,15 @@ export function SoftBodyBlob({
 
   const fingers = useRef<{ x: number; y: number }[]>([]);
   const sim = useRef<Sim>(buildSim(shape, R, cx0, cy0));
-  const [, setTick] = useState(0);
+
+  // 둘레 좌표를 평탄 배열로 공유값에 담아 UI 스레드에서 path를 그린다.
+  // (매 프레임 setState 리렌더 + 새 SkPath 할당 제거 → JS 스레드 부하·GC 감소)
+  const posSV = useSharedValue<number[]>(flattenNodes(sim.current.nodes));
 
   useEffect(() => {
     sim.current = buildSim(shapeRef.current, R, cx0, cy0);
-  }, [resetKey, cx0, cy0, R]);
+    posSV.value = flattenNodes(sim.current.nodes);
+  }, [resetKey, cx0, cy0, R, posSV]);
 
   useEffect(() => {
     let raf: number;
@@ -264,12 +281,53 @@ export function SoftBodyBlob({
         }
       }
 
-      setTick((t) => (t + 1) % 1000000);
+      // 새 좌표를 공유값에 반영 → UI 스레드 useDerivedValue가 path를 다시 그린다(리렌더 없음)
+      posSV.value = flattenNodes(nodes);
       raf = requestAnimationFrame(step);
     };
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
-  }, [cx0, cy0, R, fingerR]);
+  }, [cx0, cy0, R, fingerR, posSV]);
+
+  // UI 스레드에서 재사용 SkPath에 Catmull-Rom 곡선을 매 프레임 갱신 (할당/리렌더 없음)
+  const skPath = useMemo(() => Skia.Path.Make(), []);
+  const animatedPath = useDerivedValue(() => {
+    const a = posSV.value;
+    const m = a.length / 2;
+    skPath.reset();
+    const px = (i: number) => a[(((i % m) + m) % m) * 2];
+    const py = (i: number) => a[(((i % m) + m) % m) * 2 + 1];
+    skPath.moveTo(px(0), py(0));
+    for (let i = 0; i < m; i++) {
+      skPath.cubicTo(
+        px(i) + (px(i + 1) - px(i - 1)) / 6,
+        py(i) + (py(i + 1) - py(i - 1)) / 6,
+        px(i + 1) - (px(i + 2) - px(i)) / 6,
+        py(i + 1) - (py(i + 2) - py(i)) / 6,
+        px(i + 1),
+        py(i + 1),
+      );
+    }
+    skPath.close();
+    return skPath;
+  }, [skPath, posSV]);
+
+  // 블롭 중심(그라디언트·하이라이트용)
+  const gradC = useDerivedValue(() => {
+    const a = posSV.value;
+    const m = a.length / 2;
+    let mx = 0;
+    let my = 0;
+    for (let i = 0; i < m; i++) {
+      mx += a[i * 2];
+      my += a[i * 2 + 1];
+    }
+    mx /= m;
+    my /= m;
+    return vec(mx - R * 0.3, my - R * 0.3);
+  }, [posSV, R]);
+  const hlX = useDerivedValue(() => gradC.value.x - R * 0.02, [gradC, R]);
+  const hlY = useDerivedValue(() => gradC.value.y - R * 0.04, [gradC, R]);
 
   const pan = useMemo(
     () =>
@@ -296,47 +354,14 @@ export function SoftBodyBlob({
     [onSqueezeStart, onSqueezeMove, onRelease],
   );
 
-  // 둘레 점으로 매끈한 닫힌 곡선(Catmull-Rom → 큐빅) 생성. 매 프레임 새 SkPath.
-  const nodes = sim.current.nodes;
-  const n = nodes.length;
-  const peri = (i: number) => nodes[((i % n) + n) % n];
-  const path = Skia.Path.Make();
-  const start = peri(0);
-  path.moveTo(start.x, start.y);
-  let mx = 0;
-  let my = 0;
-  for (let i = 0; i < n; i++) {
-    const a = peri(i - 1);
-    const b = peri(i);
-    const c = peri(i + 1);
-    const d = peri(i + 2);
-    path.cubicTo(
-      b.x + (c.x - a.x) / 6,
-      b.y + (c.y - a.y) / 6,
-      c.x - (d.x - b.x) / 6,
-      c.y - (d.y - b.y) / 6,
-      c.x,
-      c.y,
-    );
-    mx += b.x;
-    my += b.y;
-  }
-  path.close();
-  mx /= n;
-  my /= n;
-
   return (
     <View style={{ width: size, height: size }} {...pan.panHandlers}>
       <Canvas style={{ width: size, height: size }} pointerEvents="none">
         <Group>
-          <Path path={path}>
-            <RadialGradient
-              c={vec(mx - R * 0.3, my - R * 0.3)}
-              r={R * 1.6}
-              colors={[innerColor, outerColor]}
-            />
+          <Path path={animatedPath}>
+            <RadialGradient c={gradC} r={R * 1.6} colors={[innerColor, outerColor]} />
           </Path>
-          <Circle cx={mx - R * 0.32} cy={my - R * 0.34} r={R * 0.18} color="rgba(255,255,255,0.5)" />
+          <Circle cx={hlX} cy={hlY} r={R * 0.18} color="rgba(255,255,255,0.5)" />
         </Group>
       </Canvas>
     </View>
