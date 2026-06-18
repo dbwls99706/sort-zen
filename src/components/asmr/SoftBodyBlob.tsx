@@ -1,13 +1,10 @@
 import React, { useEffect, useMemo, useRef } from 'react';
-import {
-  View,
-  PanResponder,
-  type GestureResponderEvent,
-  type PanResponderGestureState,
-} from 'react-native';
+import { View } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import {
   useSharedValue,
   useDerivedValue,
+  runOnJS,
 } from 'react-native-reanimated';
 import {
   Canvas,
@@ -64,8 +61,8 @@ type Props = {
   physics: BlobPhysics;
   shape: BlobShape;
   resetKey: string;
-  onSqueezeStart: (e: GestureResponderEvent) => void;
-  onSqueezeMove: (e: GestureResponderEvent, g: PanResponderGestureState) => void;
+  onSqueezeStart: (x: number, y: number) => void;
+  onSqueezeMove: (x: number, y: number, speed: number) => void;
   onRelease: () => void;
 };
 
@@ -127,13 +124,6 @@ function flattenNodes(nodes: Node[]): number[] {
   return out;
 }
 
-/** 손가락 좌표 배열 추출 (멀티터치 — 엄지 두 개 쭈그리기 지원) */
-function readFingers(e: GestureResponderEvent): { x: number; y: number }[] {
-  const touches = e.nativeEvent.touches;
-  if (!touches || touches.length === 0) return [];
-  return touches.map((t) => ({ x: t.locationX, y: t.locationY }));
-}
-
 /**
  * Skia 압력 소프트바디 블롭. 멀티터치로 누르면 표면이 들어가고 압력이 옆으로 부푼다.
  */
@@ -158,7 +148,10 @@ export function SoftBodyBlob({
   const shapeRef = useRef(shape);
   shapeRef.current = shape;
 
-  const fingers = useRef<{ x: number; y: number }[]>([]);
+  // 손가락 좌표(멀티터치) — gesture-handler 워클릿(UI 스레드)이 쓰고 물리 루프(JS)가 읽는다.
+  const fingersSV = useSharedValue<{ x: number; y: number }[]>([]);
+  const prevX = useSharedValue(0);
+  const prevY = useSharedValue(0);
   const sim = useRef<Sim>(buildSim(shape, R, cx0, cy0));
 
   // 둘레 좌표를 평탄 배열로 공유값에 담아 UI 스레드에서 path를 그린다.
@@ -175,7 +168,7 @@ export function SoftBodyBlob({
     const step = () => {
       const { nodes, restLen, restArea, restOffX, restOffY } = sim.current;
       const { pressure, tension, friction } = phys.current;
-      const fs = fingers.current;
+      const fs = fingersSV.value;
       const n = nodes.length;
 
       // 1) Verlet 적분
@@ -287,7 +280,7 @@ export function SoftBodyBlob({
     };
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
-  }, [cx0, cy0, R, fingerR, posSV]);
+  }, [cx0, cy0, R, fingerR, posSV, fingersSV]);
 
   // UI 스레드에서 재사용 SkPath에 Catmull-Rom 곡선을 매 프레임 갱신 (할당/리렌더 없음)
   const skPath = useMemo(() => Skia.Path.Make(), []);
@@ -329,41 +322,64 @@ export function SoftBodyBlob({
   const hlX = useDerivedValue(() => gradC.value.x - R * 0.02, [gradC, R]);
   const hlY = useDerivedValue(() => gradC.value.y - R * 0.04, [gradC, R]);
 
-  const pan = useMemo(
+  // gesture-handler 멀티터치 — 모든 손가락(allTouches)을 추적해 엄지 두 개 쭈그리기를 지원한다.
+  // PanResponder의 단일 responder 한계(둘째 손가락 grant 누락) 없이 포인터별 좌표를 얻는다.
+  const gesture = useMemo(
     () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: () => true,
-        onPanResponderGrant: (e) => {
-          fingers.current = readFingers(e);
-          onSqueezeStart(e);
-        },
-        onPanResponderMove: (e, g) => {
-          fingers.current = readFingers(e);
-          onSqueezeMove(e, g);
-        },
-        onPanResponderRelease: (e) => {
-          fingers.current = readFingers(e); // 남은 손가락 반영(멀티터치)
-          if (fingers.current.length === 0) onRelease();
-        },
-        onPanResponderTerminate: () => {
-          fingers.current = [];
-          onRelease();
-        },
-      }),
-    [onSqueezeStart, onSqueezeMove, onRelease],
+      Gesture.Manual()
+        .onTouchesDown((e, manager) => {
+          'worklet';
+          fingersSV.value = e.allTouches.map((t) => ({ x: t.x, y: t.y }));
+          const t0 = e.allTouches[0];
+          if (t0) {
+            prevX.value = t0.absoluteX;
+            prevY.value = t0.absoluteY;
+            runOnJS(onSqueezeStart)(t0.absoluteX, t0.absoluteY);
+          }
+          if (e.numberOfTouches >= 1) manager.activate();
+        })
+        .onTouchesMove((e) => {
+          'worklet';
+          fingersSV.value = e.allTouches.map((t) => ({ x: t.x, y: t.y }));
+          const t0 = e.allTouches[0];
+          if (!t0) return;
+          const sp = Math.hypot(t0.absoluteX - prevX.value, t0.absoluteY - prevY.value);
+          prevX.value = t0.absoluteX;
+          prevY.value = t0.absoluteY;
+          runOnJS(onSqueezeMove)(t0.absoluteX, t0.absoluteY, sp);
+        })
+        .onTouchesUp((e, manager) => {
+          'worklet';
+          const remaining = e.allTouches.filter(
+            (t) => !e.changedTouches.some((c) => c.id === t.id),
+          );
+          fingersSV.value = remaining.map((t) => ({ x: t.x, y: t.y }));
+          if (remaining.length === 0) {
+            manager.end();
+            runOnJS(onRelease)();
+          }
+        })
+        .onTouchesCancelled((_e, manager) => {
+          'worklet';
+          fingersSV.value = [];
+          manager.end();
+          runOnJS(onRelease)();
+        }),
+    [onSqueezeStart, onSqueezeMove, onRelease, fingersSV, prevX, prevY],
   );
 
   return (
-    <View style={{ width: size, height: size }} {...pan.panHandlers}>
-      <Canvas style={{ width: size, height: size }} pointerEvents="none">
-        <Group>
-          <Path path={animatedPath}>
-            <RadialGradient c={gradC} r={R * 1.6} colors={[innerColor, outerColor]} />
-          </Path>
-          <Circle cx={hlX} cy={hlY} r={R * 0.18} color="rgba(255,255,255,0.5)" />
-        </Group>
-      </Canvas>
-    </View>
+    <GestureDetector gesture={gesture}>
+      <View style={{ width: size, height: size }}>
+        <Canvas style={{ width: size, height: size }} pointerEvents="none">
+          <Group>
+            <Path path={animatedPath}>
+              <RadialGradient c={gradC} r={R * 1.6} colors={[innerColor, outerColor]} />
+            </Path>
+            <Circle cx={hlX} cy={hlY} r={R * 0.18} color="rgba(255,255,255,0.5)" />
+          </Group>
+        </Canvas>
+      </View>
+    </GestureDetector>
   );
 }

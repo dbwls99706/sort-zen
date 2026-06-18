@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useFonts } from 'expo-font';
 import { FONT_ASSETS, applyGlobalFont } from '../src/theme/fonts';
 import { ThemeProvider } from '../src/components/ThemeProvider';
@@ -41,11 +42,13 @@ export default function RootLayout() {
   if (!fontsLoaded) return null;
 
   return (
-    <ErrorBoundary>
-      <ThemeProvider>
-        <StatusBar style="auto" />
-        <Stack screenOptions={{ headerShown: false }} />
-      </ThemeProvider>
-    </ErrorBoundary>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ErrorBoundary>
+        <ThemeProvider>
+          <StatusBar style="auto" />
+          <Stack screenOptions={{ headerShown: false }} />
+        </ThemeProvider>
+      </ErrorBoundary>
+    </GestureHandlerRootView>
   );
 }

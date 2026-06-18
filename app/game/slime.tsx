@@ -1,12 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Pressable,
-  type GestureResponderEvent,
-  type PanResponderGestureState,
-} from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Animated, {
@@ -209,9 +202,8 @@ export default function ASMRSensoryScreen() {
 
   // 블롭 → 부모로 전달되는 제스처 콜백 (사운드/햅틱/파티클/카메라 흔들림 오케스트레이션)
   const handleSqueezeStart = useCallback(
-    (e: GestureResponderEvent) => {
+    (x: number, y: number) => {
       const mat = activeMaterialRef.current;
-      const { pageX, pageY } = e.nativeEvent;
       SoundManager.play(mat.soundKey);
       if (mat.id === 'sponge') Haptic.heavy();
       else Haptic.medium();
@@ -220,31 +212,28 @@ export default function ASMRSensoryScreen() {
       screenTranslateY.value = withTiming((rand() - 0.5) * 25 * mat.screenShakeFactor, { duration: 60 });
       screenRotate.value = withTiming((rand() - 0.5) * 0.08 * mat.screenShakeFactor, { duration: 60 });
 
-      spawnParticles(pageX, pageY, mat.id === 'water' ? 18 : 6);
+      spawnParticles(x, y, mat.id === 'water' ? 18 : 6);
     },
     [spawnParticles, screenTranslateX, screenTranslateY, screenRotate],
   );
 
   const handleSqueezeMove = useCallback(
-    (e: GestureResponderEvent, g: PanResponderGestureState) => {
+    (x: number, y: number, speed: number) => {
       const mat = activeMaterialRef.current;
-      const { pageX, pageY } = e.nativeEvent;
-      const { dx, dy } = g;
-
-      screenTranslateX.value = dx * 0.18 * mat.screenShakeFactor;
-      screenTranslateY.value = dy * 0.18 * mat.screenShakeFactor;
-      screenRotate.value = (dx / 400) * 0.08 * mat.screenShakeFactor;
+      // 화면 흔들림: 손가락 속도 비례 지터 (엄지 두 개 멀티터치에서도 동작)
+      const shake = Math.min(1, speed / 18);
+      screenTranslateX.value = withTiming((rand() - 0.5) * 22 * mat.screenShakeFactor * shake, { duration: 50 });
+      screenTranslateY.value = withTiming((rand() - 0.5) * 22 * mat.screenShakeFactor * shake, { duration: 50 });
+      screenRotate.value = withTiming((rand() - 0.5) * 0.06 * mat.screenShakeFactor * shake, { duration: 50 });
 
       const now = nowMs();
-      const distance = Math.sqrt(dx * dx + dy * dy);
       const throttleTime = mat.id === 'water' ? 65 : 110;
-      if (distance > 12 && now - lastSoundTime.current > throttleTime) {
+      if (speed > 1.5 && now - lastSoundTime.current > throttleTime) {
         SoundManager.play(mat.soundKey);
         Haptic.light();
         // 빠르게 문지를수록 파티클을 더 튀긴다 (변형 강도와 감각 연동)
-        const speed = Math.sqrt(g.vx * g.vx + g.vy * g.vy);
         const base = mat.id === 'water' ? 6 : 2;
-        spawnParticles(pageX, pageY, base + Math.min(8, Math.round(speed * 6)));
+        spawnParticles(x, y, base + Math.min(8, Math.round(speed * 0.6)));
         lastSoundTime.current = now;
       }
     },
