@@ -24,7 +24,12 @@ type SoundKey =
   | 'water_pour'
   | 'shaving_cream'
   | 'handcream'
-  | 'sponge';
+  | 'sponge'
+  | 'impact_slime'
+  | 'impact_shaving'
+  | 'impact_handcream'
+  | 'impact_sponge'
+  | 'impact_water';
 
 // ASMR 감각 방 전용 사운드. 용량이 커 시작 시 프리로드하지 않고 최초 재생 때 지연 로드한다.
 const ASMR_SOUND_KEYS: readonly SoundKey[] = [
@@ -79,6 +84,12 @@ const SOUND_ASSETS: Record<SoundKey, number> = {
   shaving_cream: require('./assets/shaving_cream.mp3'),
   handcream: require('./assets/handcream.mp3'),
   sponge: require('./assets/sponge.mp3'),
+  // 터치 임팩트 원샷(첨벙/찰싹/꾸덕/뽀독) — 작아서 프리로드해 즉시 반응시킨다
+  impact_slime: require('./assets/impact_slime.wav'),
+  impact_shaving: require('./assets/impact_shaving.wav'),
+  impact_handcream: require('./assets/impact_handcream.wav'),
+  impact_sponge: require('./assets/impact_sponge.wav'),
+  impact_water: require('./assets/impact_water.wav'),
 };
 
 const BGM_ASSETS = {

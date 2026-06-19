@@ -22,6 +22,13 @@ type ASMRMaterial = {
   name: string;
   nameKo: string;
   soundKey: 'slime' | 'shaving_cream' | 'handcream' | 'sponge' | 'water_pour';
+  /** 손가락이 닿는 매 순간 터지는 짧은 임팩트음(첨벙/찰싹/꾸덕/뽀독) */
+  tapSoundKey:
+    | 'impact_slime'
+    | 'impact_shaving'
+    | 'impact_handcream'
+    | 'impact_sponge'
+    | 'impact_water';
   colors: string[];
   particleColors: string[];
   descKo: string;
@@ -44,6 +51,7 @@ const MATERIALS: ASMRMaterial[] = [
     name: 'Gooey Slime',
     nameKo: '말랑 슬라임',
     soundKey: 'slime',
+    tapSoundKey: 'impact_slime',
     colors: ['#96E6A1', '#D4FC79'],
     particleColors: ['#E3FFB2', '#A1E8AF', '#7CE0A6'],
     descKo: '쫀득하고 말랑한 슬라임입니다. 쭉 늘리며 만져보세요.',
@@ -62,6 +70,7 @@ const MATERIALS: ASMRMaterial[] = [
     name: 'Shaving Cream',
     nameKo: '쉐이빙 크림',
     soundKey: 'shaving_cream',
+    tapSoundKey: 'impact_shaving',
     colors: ['#80DEEA', '#E0F7FA'],
     particleColors: ['#FFFFFF', '#E0F7FA', '#B2EBF2'],
     descKo: '몽글몽글하고 푹신한 크림입니다. 만지면 부풀어 오릅니다.',
@@ -80,17 +89,18 @@ const MATERIALS: ASMRMaterial[] = [
     name: 'Soft Lotion',
     nameKo: '촉촉 핸드크림',
     soundKey: 'handcream',
+    tapSoundKey: 'impact_handcream',
     colors: ['#F48FB1', '#F8BBD0'],
     particleColors: ['#FFF0F5', '#F8BBD0', '#F1A7C4'],
     descKo: '부드럽고 매끄러운 로션입니다. 화면 전체를 미끄러지듯 문지르세요.',
     descEn: 'Rub the silky smooth lotion for calming sounds.',
-    // 매끈·탱탱·미끌: 높은 부피보존·매끈한 막
-    blob: { pressure: 0.55, tension: 0.3, friction: 0.82 },
-    // 매끈한 가로 타원
-    blobShape: { scale: 1.0, lobes: 0, lobeAmp: 0, aspectX: 1.12, aspectY: 0.93 },
-    particleSpeed: 2.8,
+    // 매끈·탱탱·미끌: 높은 부피보존 + 무른 막(크게 눌리고 탱탱하게 부푼다)
+    blob: { pressure: 0.72, tension: 0.2, friction: 0.86 },
+    // 매끈한 가로 타원 (크게)
+    blobShape: { scale: 1.14, lobes: 0, lobeAmp: 0, aspectX: 1.12, aspectY: 0.93 },
+    particleSpeed: 4.5,
     particleGravity: 0.16,
-    screenShakeFactor: 0.12,
+    screenShakeFactor: 0.32,
     particleShape: 'droplet',
   },
   {
@@ -98,6 +108,7 @@ const MATERIALS: ASMRMaterial[] = [
     name: 'Sensory Sponge',
     nameKo: '구멍 숑숑 스펀지',
     soundKey: 'sponge',
+    tapSoundKey: 'impact_sponge',
     colors: ['#FFF176', '#FFF59D'],
     particleColors: ['#FFF9C4', '#FFF59D', '#FBC02D'],
     descKo: '폭신한 스펀지입니다. 꽉 쥐어 짜면 강하게 수축했다가 튕겨납니다.',
@@ -116,17 +127,18 @@ const MATERIALS: ASMRMaterial[] = [
     name: 'Water Splash',
     nameKo: '찰랑찰랑 물',
     soundKey: 'water_pour',
+    tapSoundKey: 'impact_water',
     colors: ['#4FC3F7', '#B3E5FC'],
     particleColors: ['#E1F5FE', '#B3E5FC', '#0288D1'],
     descKo: '시원한 물입니다. 찰랑거리는 파도와 함께 물을 튀겨보세요.',
     descEn: 'Stir and splash clear water for bubbling ASMR.',
-    // 찰랑: 최고 부피보존(비압축)+강한 표면장력(둥글게 복원)·높은 마찰(오래 출렁)
-    blob: { pressure: 1.0, tension: 0.55, friction: 0.93 },
-    // 넓적한 가로 타원 (수면처럼)
-    blobShape: { scale: 1.0, lobes: 0, lobeAmp: 0, aspectX: 1.16, aspectY: 0.88 },
-    particleSpeed: 8.5,
+    // 찰랑: 최고 부피보존(비압축)+무른 표면장력(크게 출렁)·높은 마찰(오래 일렁)
+    blob: { pressure: 1.0, tension: 0.4, friction: 0.93 },
+    // 넓적한 가로 타원 (수면처럼, 크게)
+    blobShape: { scale: 1.14, lobes: 0, lobeAmp: 0, aspectX: 1.16, aspectY: 0.88 },
+    particleSpeed: 10.5,
     particleGravity: 0.45,
-    screenShakeFactor: 0.26,
+    screenShakeFactor: 0.48,
     particleShape: 'droplet',
   },
 ];
@@ -165,6 +177,8 @@ export default function ASMRSensoryScreen() {
   const screenRotate = useSharedValue(0);
 
   const lastSoundTime = useRef(0);
+  // 임팩트 원샷(첨벙/찰싹) 전용 스로틀 — 빠르게 문질러도 음이 겹쳐 깨지지 않게 한다
+  const lastTapTime = useRef(0);
 
   const activeMaterialRef = useRef(activeMaterial);
   useEffect(() => {
@@ -206,6 +220,9 @@ export default function ASMRSensoryScreen() {
       const mat = activeMaterialRef.current;
       // 접촉 루프 시작 — 누르는 동안 끊김 없이 이어지는 사운드
       SoundManager.startLoop(mat.soundKey, 0.5);
+      // 닿는 순간 터지는 임팩트(첨벙/찰싹/꾸덕/뽀독) — 매 터치마다 또렷한 손맛
+      SoundManager.play(mat.tapSoundKey);
+      lastTapTime.current = nowMs();
       if (mat.id === 'sponge') Haptic.heavy();
       else Haptic.medium();
 
@@ -238,6 +255,12 @@ export default function ASMRSensoryScreen() {
         const base = mat.id === 'water' ? 6 : 2;
         spawnParticles(x, y, base + Math.min(8, Math.round(speed * 0.6)));
         lastSoundTime.current = now;
+      }
+
+      // 세게 문지르거나 튀길 때 임팩트 원샷을 덧입힌다 (루프 위에 첨벙! 강세)
+      if (speed > 9 && now - lastTapTime.current > 160) {
+        SoundManager.play(mat.tapSoundKey);
+        lastTapTime.current = now;
       }
     },
     [spawnParticles, screenTranslateX, screenTranslateY, screenRotate],

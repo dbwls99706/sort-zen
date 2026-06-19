@@ -45,9 +45,9 @@ type Node = { x: number; y: number; ox: number; oy: number };
 const RING = 28; // 둘레 점 개수 (유체 표현·손가락 충돌 해상)
 const ITER = 6; // 막 스프링 이완 반복 (관통/자기교차 방지)
 const ANCHOR_K = 0.05; // 무게중심을 제자리로 되돌리는 약한 힘
-const FINGER_R_FACTOR = 0.62; // 손끝(고체 원) 반경 = R * 이 값
-const FINGER_PUSH = 0.85; // 손끝 밖으로 표면을 밀어내는 비율
-const MAX_FINGER_DISP = 0.13; // 프레임당 손가락 변위 상한 (R 대비) — 점 관통/곡선 깨짐 방지
+const FINGER_R_FACTOR = 0.66; // 손끝(고체 원) 반경 = R * 이 값
+const FINGER_PUSH = 0.92; // 손끝 밖으로 표면을 밀어내는 비율 (깊고 또렷한 눌림)
+const MAX_FINGER_DISP = 0.2; // 프레임당 손가락 변위 상한 (R 대비) — 점 관통/곡선 깨짐 방지
 const PRESS_SCALE = 0.02; // 가스압 → 변 법선 힘 스케일
 const MAX_PRESS_MULT = 3; // 가스압 폭주 클램프 (압축 시 발산 방지)
 // 형태 기억: 압력 모델은 둘레를 원으로 둥글리려 하므로, 정점을 무게중심 기준 rest 위치로
