@@ -14,6 +14,7 @@ import { useTheme } from '../../src/components/ThemeProvider';
 import {
   TubeComponent,
   TUBE_CONTAINER_TOP_GAP,
+  TUBE_SELECTED_LIFT,
 } from '../../src/components/Tube';
 import { TUBE_WIDTH, TUBE_HEIGHT } from '../../src/components/tube/dimensions';
 import { computeTubeScale } from '../../src/utils/layout';
@@ -244,16 +245,27 @@ export default function GameScreen() {
         const color = theme.colors[colorId % theme.colors.length];
         const direction = to.x > from.x ? 'right' : 'left';
 
-        // 들어올린 소스 튜브 입구 높이(튜브-로컬 단위). 스트림 시작점과 동일하게 맞춰야
-        // 액체가 입구에서 흘러나오는 것처럼 보인다(예전엔 입구는 -120 위인데 스트림은
-        // -30에서 시작해 입구와 90px 떨어진 허공에서 액체가 생겨 어색했다).
+        // 소스 튜브를 들어올려(POUR_LIFT) 대상 위로 옮기고 기울이는 변환량(튜브-로컬 단위).
         const POUR_LIFT = 120;
+        const dir = direction === 'right' ? 1 : -1;
         const translationX = (to.x - from.x) / scale + (direction === 'right' ? -15 : 15);
         const translationY = (to.y - from.y) / scale - POUR_LIFT;
 
-        // 스트림: 들어올린 입구 바로 아래에서 시작해 대상 튜브 입구로 떨어진다.
-        const fromX = to.x + to.width / 2 + (direction === 'right' ? -15 : 15) * scale;
-        const fromY = to.y - (POUR_LIFT - 10) * scale;
+        // 스트림 시작점 = 기울어진 소스 튜브의 '입구 입술'(spout)을 실제 변환(이동·선택
+        // 들어올림·회전) 그대로 따라 계산한다. 예전엔 시작점을 대상 위 허공에 고정해
+        // 기울어진 컵 입구와 분리돼 액체가 허공에서 갑자기 생겼다. 이제 컵 끝에서 흘러나온다.
+        // 회전 피벗 = 소스 튜브 컨테이너 중심. 입술 = 중심 기준 (가로 ±, 입구 높이)를
+        // tiltAngle(±70°, TubeComponent와 동일)만큼 회전한 위치.
+        const pivotX = from.x + from.width / 2 + translationX * scale;
+        const pivotY =
+          from.y + from.height / 2 + (translationY - TUBE_SELECTED_LIFT) * scale;
+        const rimY = (TUBE_CONTAINER_TOP_GAP - TUBE_HEIGHT) / 2; // 입구(캔버스 윗변) 로컬 오프셋
+        const lipX = dir * TUBE_WIDTH * 0.35; // 기우는 쪽 입술
+        const rad = (dir * 70 * Math.PI) / 180;
+        const cos = Math.cos(rad);
+        const sin = Math.sin(rad);
+        const fromX = pivotX + (lipX * cos - rimY * sin) * scale;
+        const fromY = pivotY + (lipX * sin + rimY * cos) * scale;
         const toX = to.x + to.width / 2;
         const toY = to.y + 10 * scale;
 
