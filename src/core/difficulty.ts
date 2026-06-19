@@ -5,6 +5,8 @@ import {
   MAX_COLORS,
   MIN_COLORS,
   MAX_SHUFFLE_STEPS,
+  HIDDEN_START_LEVEL,
+  HIDDEN_RAMP_LEVELS,
 } from './constants';
 
 /** 난이도 랜덤 색상 수 하한(너무 쉬운 판 방지) */
@@ -37,6 +39,17 @@ export function getDifficulty(level: number): GenParams {
     shuffleSteps,
     seed: `lvl-${level}-${Math.floor(Math.random() * 1e9)}`,
   };
+}
+
+/**
+ * 클래식 가려진 레이어 깊이 — 고레벨부터 점진적으로 깊어진다(사용자 요청).
+ * HIDDEN_START_LEVEL 미만은 0(전부 공개), 이후 HIDDEN_RAMP_LEVELS마다 1칸씩 깊어지며
+ * capacity-1(맨 위만 보임)에서 멈춘다. ZEN(힐링)에는 적용하지 않는다.
+ */
+export function getHiddenDepth(level: number): number {
+  if (level < HIDDEN_START_LEVEL) return 0;
+  const depth = 1 + Math.floor((level - HIDDEN_START_LEVEL) / HIDDEN_RAMP_LEVELS);
+  return Math.min(DEFAULT_CAPACITY - 1, depth);
 }
 
 export function getZenParams(): GenParams {

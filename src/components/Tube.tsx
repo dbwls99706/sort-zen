@@ -21,9 +21,10 @@ import Animated, {
   cancelAnimation,
   Easing,
 } from 'react-native-reanimated';
-import { Pressable, StyleSheet } from 'react-native';
+import { Pressable, StyleSheet, Text } from 'react-native';
 import { useTheme } from './ThemeProvider';
 import { Tube as TubeType } from '../core/types';
+import { hiddenLayerCount } from '../core/rules';
 import { lighten, darken } from '../utils/color';
 import {
   TUBE_WIDTH,
@@ -46,6 +47,8 @@ const WAVE_SURGE_DECAY_MS = 900;
 const SELECTED_OFFSET = -TUBE_SELECTED_LIFT;
 /** 튜브 선택/기울기 이동에 쓰는 공통 스프링 설정 */
 const TILT_SPRING = { damping: 18, stiffness: 150 };
+/** 색이 가려진(미공개) 레이어 표시색 (회색) */
+const HIDDEN_COLOR = '#9aa0aa';
 
 type TubeProps = {
   tube: TubeType;
@@ -150,19 +153,31 @@ export function TubeComponent({
 
   const layersCount = tube.layers.length;
   const topIndex = layersCount - 1;
+  // 바닥부터 가려진(색 미공개) 레이어 수 — 회색+? 로 표시(클래식 고레벨). 맨 위는 항상 공개.
+  const hiddenCount = hiddenLayerCount(tube);
 
   // 연속된 같은 색 레이어를 하나의 런(블록)으로 묶는다 — 같은 색끼리는 칸 경계 없이
   // 한 덩어리로 보이게 한다(사용자 요청). start=바닥부터의 시작 인덱스, count=레이어 수.
+  // 가려진 칸은 색과 무관하게 하나의 회색 덩어리로 묶고, 공개 칸은 색끼리 묶는다.
   const runs = useMemo(() => {
-    const out: { colorId: number; start: number; count: number }[] = [];
+    const out: {
+      colorId: number;
+      start: number;
+      count: number;
+      hidden: boolean;
+    }[] = [];
     for (let i = 0; i < tube.layers.length; i++) {
+      const hidden = i < hiddenCount;
       const c = tube.layers[i];
       const last = out[out.length - 1];
-      if (last && last.colorId === c) last.count += 1;
-      else out.push({ colorId: c, start: i, count: 1 });
+      if (last && last.hidden === hidden && (hidden || last.colorId === c)) {
+        last.count += 1;
+      } else {
+        out.push({ colorId: c, start: i, count: 1, hidden });
+      }
     }
     return out;
-  }, [tube.layers]);
+  }, [tube.layers, hiddenCount]);
   // 최상단 런은 출렁이는 메니스커스로 그리고, 그 아래 런들만 평평한 블록으로 그린다.
   const topRunStart = runs.length > 0 ? runs[runs.length - 1].start : 0;
   const underRuns = runs.slice(0, -1);
@@ -232,7 +247,9 @@ export function TubeComponent({
             {underRuns.map((run) => {
               const top = TUBE_HEIGHT - (run.start + run.count) * LAYER_HEIGHT;
               const h = run.count * LAYER_HEIGHT;
-              const base = theme.colors[run.colorId % theme.colors.length];
+              const base = run.hidden
+                ? HIDDEN_COLOR
+                : theme.colors[run.colorId % theme.colors.length];
               return (
                 <RoundedRect
                   key={`${tube.id}-r${run.start}`}
@@ -324,6 +341,19 @@ export function TubeComponent({
             strokeCap="round"
           />
         </Canvas>
+
+        {/* 가려진 레이어 위에 '?' 표식 — 색을 모른다는 신호 (캔버스 위 오버레이) */}
+        {Array.from({ length: hiddenCount }).map((_, i) => (
+          <Text
+            key={`q-${i}`}
+            style={[
+              styles.hiddenMark,
+              { bottom: i * LAYER_HEIGHT + (LAYER_HEIGHT - 18) / 2 },
+            ]}
+          >
+            ?
+          </Text>
+        ))}
       </Animated.View>
     </Pressable>
   );
@@ -339,5 +369,15 @@ const styles = StyleSheet.create({
   canvas: {
     width: TUBE_WIDTH,
     height: TUBE_HEIGHT,
+  },
+  hiddenMark: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    textAlign: 'center',
+    color: 'rgba(255,255,255,0.95)',
+    fontSize: 18,
+    fontWeight: 'bold',
+    pointerEvents: 'none',
   },
 });

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Pressable, StyleSheet } from 'react-native';
+import { View, Pressable, StyleSheet, Text } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useDerivedValue,
@@ -7,6 +7,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useTheme } from './ThemeProvider';
 import { Tube as TubeType } from '../core/types';
+import { hiddenLayerCount } from '../core/rules';
 import {
   TUBE_WIDTH,
   TUBE_HEIGHT,
@@ -21,6 +22,8 @@ export { TUBE_SELECTED_LIFT, TUBE_CONTAINER_TOP_GAP } from './tube/dimensions';
 const SELECTED_OFFSET = -TUBE_SELECTED_LIFT;
 /** 튜브 선택/기울기 이동에 쓰는 공통 스프링 설정 */
 const TILT_SPRING = { damping: 18, stiffness: 150 };
+/** 색이 가려진(미공개) 레이어 표시색 (회색) */
+const HIDDEN_COLOR = '#9aa0aa';
 
 type TubeProps = {
   tube: TubeType;
@@ -58,8 +61,11 @@ export function TubeComponent({
     };
   });
 
+  // 바닥부터 가려진(색 미공개) 레이어 수 — 회색+? 로 표시(클래식 고레벨). 맨 위는 항상 공개.
+  const hiddenCount = hiddenLayerCount(tube);
   // Reverse layers so top of stack is rendered first (on top) in flexDirection: 'column'
   const reversedLayers = [...tube.layers].reverse();
+  const lastIndex = tube.layers.length - 1;
 
   return (
     <Pressable onPress={onPress}>
@@ -74,18 +80,21 @@ export function TubeComponent({
           ]}
         >
           {reversedLayers.map((colorId, index) => {
-            const color = theme.colors[colorId % theme.colors.length];
+            const layerIndex = lastIndex - index; // 바닥부터의 실제 인덱스
+            const hidden = layerIndex < hiddenCount;
+            const color = hidden
+              ? HIDDEN_COLOR
+              : theme.colors[colorId % theme.colors.length];
             return (
               <View
                 key={`${tube.id}-${index}`}
                 style={[
                   styles.layer,
-                  {
-                    backgroundColor: color,
-                    height: LAYER_HEIGHT,
-                  },
+                  { backgroundColor: color, height: LAYER_HEIGHT },
                 ]}
-              />
+              >
+                {hidden && <Text style={styles.hiddenMark}>?</Text>}
+              </View>
             );
           })}
         </View>
@@ -115,5 +124,12 @@ const styles = StyleSheet.create({
     width: '100%',
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  hiddenMark: {
+    color: 'rgba(255,255,255,0.95)',
+    fontSize: 18,
+    fontWeight: 'bold',
   },
 });

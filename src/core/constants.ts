@@ -12,6 +12,11 @@ export const MAX_SHUFFLE_STEPS = 300;
 /** 힌트 1회 코인 비용. 부족하면 리워드 광고로 대체 (T143) */
 export const HINT_COST = 15;
 
+/** 가려진 레이어(회색+?) 메커니즘이 처음 등장하는 클래식 레벨 */
+export const HIDDEN_START_LEVEL = 10;
+/** 가려진 레이어가 1칸씩 깊어지는 레벨 간격 (점진 난이도) */
+export const HIDDEN_RAMP_LEVELS = 5;
+
 /** 리워드 광고 1회 시청 보상 코인 (상점 '무료 코인'). 힌트 약 2회분 */
 export const REWARDED_COIN_AMOUNT = 30;
 

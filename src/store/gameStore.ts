@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { Tube, Move } from '../core/types';
 import { pour, isCleared, applyUndo } from '../core/rules';
 import { generateLevel } from '../core/generator';
-import { getDifficulty, getZenParams } from '../core/difficulty';
+import { getDifficulty, getZenParams, getHiddenDepth } from '../core/difficulty';
 import { findSolution } from '../core/solver';
 
 type GameMode = 'classic' | 'zen';
@@ -41,7 +41,18 @@ export const useGameStore = create<GameStoreState>()((set, get) => ({
     const lvl = level ?? 1;
     const params =
       mode === 'classic' ? getDifficulty(lvl) : getZenParams();
-    const tubes = generateLevel(params);
+    const generated = generateLevel(params);
+    // 클래식 고레벨: 바닥부터 일부 레이어를 가린다(회색+?). 솔버는 실제 색으로 동작하므로
+    // 가림은 표시/체감 난이도만 바꾼다(생성 솔버블 게이트에 영향 없음).
+    const hideDepth = mode === 'classic' ? getHiddenDepth(lvl) : 0;
+    const tubes =
+      hideDepth > 0
+        ? generated.map((t) =>
+            t.layers.length > 1
+              ? { ...t, hiddenCount: Math.min(hideDepth, t.layers.length - 1) }
+              : t,
+          )
+        : generated;
     const solution = findSolution(tubes);
     set({
       tubes,
