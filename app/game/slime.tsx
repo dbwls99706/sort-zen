@@ -10,6 +10,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useTheme } from '../../src/components/ThemeProvider';
 import { SoundManager } from '../../src/audio/SoundManager';
+import { type AsmrMaterial } from '../../src/audio/asmrPools';
 import { Haptic } from '../../src/utils/haptics';
 import {
   SoftBodyBlob,
@@ -21,14 +22,8 @@ type ASMRMaterial = {
   id: string;
   name: string;
   nameKo: string;
-  soundKey: 'slime' | 'shaving_cream' | 'handcream' | 'sponge' | 'water_pour';
-  /** 손가락이 닿는 매 순간 터지는 짧은 임팩트음(첨벙/찰싹/꾸덕/뽀독) */
-  tapSoundKey:
-    | 'impact_slime'
-    | 'impact_shaving'
-    | 'impact_handcream'
-    | 'impact_sponge'
-    | 'impact_water';
+  /** ASMR 재질 — 임팩트/루프 사운드 풀(CC0) 선택 키 */
+  material: AsmrMaterial;
   colors: string[];
   particleColors: string[];
   descKo: string;
@@ -50,8 +45,7 @@ const MATERIALS: ASMRMaterial[] = [
     id: 'slime',
     name: 'Gooey Slime',
     nameKo: '말랑 슬라임',
-    soundKey: 'slime',
-    tapSoundKey: 'impact_slime',
+    material: 'slime',
     colors: ['#96E6A1', '#D4FC79'],
     particleColors: ['#E3FFB2', '#A1E8AF', '#7CE0A6'],
     descKo: '쫀득하고 말랑한 슬라임입니다. 쭉 늘리며 만져보세요.',
@@ -69,8 +63,7 @@ const MATERIALS: ASMRMaterial[] = [
     id: 'shaving_cream',
     name: 'Shaving Cream',
     nameKo: '쉐이빙 크림',
-    soundKey: 'shaving_cream',
-    tapSoundKey: 'impact_shaving',
+    material: 'shaving',
     colors: ['#80DEEA', '#E0F7FA'],
     particleColors: ['#FFFFFF', '#E0F7FA', '#B2EBF2'],
     descKo: '몽글몽글하고 푹신한 크림입니다. 만지면 부풀어 오릅니다.',
@@ -88,8 +81,7 @@ const MATERIALS: ASMRMaterial[] = [
     id: 'handcream',
     name: 'Soft Lotion',
     nameKo: '촉촉 핸드크림',
-    soundKey: 'handcream',
-    tapSoundKey: 'impact_handcream',
+    material: 'handcream',
     colors: ['#F48FB1', '#F8BBD0'],
     particleColors: ['#FFF0F5', '#F8BBD0', '#F1A7C4'],
     descKo: '부드럽고 매끄러운 로션입니다. 화면 전체를 미끄러지듯 문지르세요.',
@@ -107,8 +99,7 @@ const MATERIALS: ASMRMaterial[] = [
     id: 'sponge',
     name: 'Sensory Sponge',
     nameKo: '구멍 숑숑 스펀지',
-    soundKey: 'sponge',
-    tapSoundKey: 'impact_sponge',
+    material: 'sponge',
     colors: ['#FFF176', '#FFF59D'],
     particleColors: ['#FFF9C4', '#FFF59D', '#FBC02D'],
     descKo: '폭신한 스펀지입니다. 꽉 쥐어 짜면 강하게 수축했다가 튕겨납니다.',
@@ -126,8 +117,7 @@ const MATERIALS: ASMRMaterial[] = [
     id: 'water',
     name: 'Water Splash',
     nameKo: '찰랑찰랑 물',
-    soundKey: 'water_pour',
-    tapSoundKey: 'impact_water',
+    material: 'water',
     colors: ['#4FC3F7', '#B3E5FC'],
     particleColors: ['#E1F5FE', '#B3E5FC', '#0288D1'],
     descKo: '시원한 물입니다. 찰랑거리는 파도와 함께 물을 튀겨보세요.',
@@ -218,10 +208,10 @@ export default function ASMRSensoryScreen() {
   const handleSqueezeStart = useCallback(
     (x: number, y: number) => {
       const mat = activeMaterialRef.current;
-      // 접촉 루프 시작 — 누르는 동안 끊김 없이 이어지는 사운드
-      SoundManager.startLoop(mat.soundKey, 0.5);
-      // 닿는 순간 터지는 임팩트(첨벙/찰싹/꾸덕/뽀독) — 매 터치마다 또렷한 손맛
-      SoundManager.play(mat.tapSoundKey);
+      // 접촉 루프 시작 — 누르는 동안 끊김 없이 이어지는 사운드(재질 풀에서 랜덤)
+      SoundManager.startLoop(mat.material, 0.5);
+      // 닿는 순간 터지는 임팩트(첨벙/찰싹/꾸덕 등) — 매 터치마다 풀에서 랜덤 손맛
+      SoundManager.playImpact(mat.material);
       lastTapTime.current = nowMs();
       if (mat.id === 'sponge') Haptic.heavy();
       else Haptic.medium();
@@ -259,7 +249,7 @@ export default function ASMRSensoryScreen() {
 
       // 세게 문지르거나 튀길 때 임팩트 원샷을 덧입힌다 (루프 위에 첨벙! 강세)
       if (speed > 9 && now - lastTapTime.current > 160) {
-        SoundManager.play(mat.tapSoundKey);
+        SoundManager.playImpact(mat.material);
         lastTapTime.current = now;
       }
     },
@@ -273,9 +263,10 @@ export default function ASMRSensoryScreen() {
     screenRotate.value = withSpring(0, { damping: 12, stiffness: 90 });
   }, [screenTranslateX, screenTranslateY, screenRotate]);
 
-  // BGM
+  // BGM + ASMR 임팩트 풀 워밍(첫 터치 지연 제거)
   useEffect(() => {
     SoundManager.playBGM('zen');
+    SoundManager.preloadAsmr();
     return () => {
       SoundManager.stopBGM();
       SoundManager.stopLoop();
@@ -330,7 +321,7 @@ export default function ASMRSensoryScreen() {
     SoundManager.play('button_tap');
     Haptic.light();
     setActiveMaterial(material);
-    SoundManager.play(material.soundKey);
+    SoundManager.playImpact(material.material); // 전환한 재질 미리듣기(풀 랜덤)
   };
 
   return (

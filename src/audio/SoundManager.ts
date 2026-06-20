@@ -1,5 +1,6 @@
 import { Audio } from 'expo-av';
 import { useSettingsStore } from '../store/settingsStore';
+import { ASMR_POOLS, type AsmrMaterial } from './asmrPools';
 
 type SoundKey =
   | 'pour_0'
@@ -19,30 +20,7 @@ type SoundKey =
   | 'complete_tube'
   | 'level_clear'
   | 'coin'
-  | 'button_tap'
-  | 'slime'
-  | 'water_pour'
-  | 'shaving_cream'
-  | 'handcream'
-  | 'sponge'
-  | 'impact_slime'
-  | 'impact_shaving'
-  | 'impact_handcream'
-  | 'impact_sponge'
-  | 'impact_water';
-
-// ASMR 감각 방 전용 사운드. 용량이 커 시작 시 프리로드하지 않고 최초 재생 때 지연 로드한다.
-const ASMR_SOUND_KEYS: readonly SoundKey[] = [
-  'slime',
-  'water_pour',
-  'shaving_cream',
-  'handcream',
-  'sponge',
-];
-
-function isAsmrKey(key: SoundKey): boolean {
-  return ASMR_SOUND_KEYS.includes(key);
-}
+  | 'button_tap';
 
 /** 붓기 음계 수 (pour_0 ~ pour_11, C4~G5 — docs/02-audio.md) */
 const POUR_NOTE_COUNT = 12;
@@ -79,17 +57,6 @@ const SOUND_ASSETS: Record<SoundKey, number> = {
   level_clear: require('./assets/level_clear.wav'),
   coin: require('./assets/coin.wav'),
   button_tap: require('./assets/button_tap.wav'),
-  slime: require('./assets/slime.mp3'),
-  water_pour: require('./assets/water_pour.mp3'),
-  shaving_cream: require('./assets/shaving_cream.mp3'),
-  handcream: require('./assets/handcream.mp3'),
-  sponge: require('./assets/sponge.mp3'),
-  // 터치 임팩트 원샷(첨벙/찰싹/꾸덕/뽀독) — 작아서 프리로드해 즉시 반응시킨다
-  impact_slime: require('./assets/impact_slime.wav'),
-  impact_shaving: require('./assets/impact_shaving.wav'),
-  impact_handcream: require('./assets/impact_handcream.wav'),
-  impact_sponge: require('./assets/impact_sponge.wav'),
-  impact_water: require('./assets/impact_water.wav'),
 };
 
 const BGM_ASSETS = {
@@ -102,9 +69,13 @@ class SoundManagerClass {
   private sounds: Map<SoundKey, Audio.Sound> = new Map();
   private bgm: Audio.Sound | null = null;
   private loaded = false;
-  // ASMR 접촉 루프 — 누르고 문지르는 동안 끊김 없이 이어지는 단일 인스턴스(피치/볼륨 변조)
+  // ASMR 접촉 루프 — 누르고 문지르는 동안 끊김 없이 이어지는 단일 인스턴스(볼륨 변조)
   private loopSound: Audio.Sound | null = null;
-  private loopKey: SoundKey | null = null;
+  private loopAsset: number | null = null;
+  // ASMR 재질 풀(CC0) 사운드 캐시 — 자산 모듈 id로 캐싱해 재사용한다.
+  private asmrSounds: Map<number, Audio.Sound> = new Map();
+  // 풀별 직전 선택 인덱스 — 바로 같은 소리가 연속되지 않게 한다(랜덤성 체감 ↑).
+  private lastPick: Map<string, number> = new Map();
 
   async preload(): Promise<void> {
     if (this.loaded) return;
@@ -116,10 +87,6 @@ class SoundManagerClass {
     });
 
     for (const [key, asset] of Object.entries(SOUND_ASSETS)) {
-      // 큰 ASMR 자산은 프리로드에서 제외해 시작을 가볍게 유지
-      if (isAsmrKey(key as SoundKey)) {
-        continue;
-      }
       const { sound } = await Audio.Sound.createAsync(asset, {
         volume: effectVolume(),
       });
@@ -131,27 +98,66 @@ class SoundManagerClass {
 
   async play(key: SoundKey): Promise<void> {
     if (!useSettingsStore.getState().soundEnabled) return;
-
-    let sound = this.sounds.get(key);
-    if (!sound) {
-      if (isAsmrKey(key)) {
-        try {
-          const asset = SOUND_ASSETS[key];
-          const { sound: newSound } = await Audio.Sound.createAsync(asset, {
-            volume: effectVolume(),
-          });
-          this.sounds.set(key, newSound);
-          sound = newSound;
-        } catch (e) {
-          console.warn(`Failed to load sound on demand: ${key}`, e);
-          return;
-        }
-      } else {
-        return;
-      }
-    }
-
+    const sound = this.sounds.get(key);
+    if (!sound) return;
     try {
+      await sound.replayAsync();
+    } catch {
+      /* ignore */
+    }
+  }
+
+  /** 풀에서 직전과 다른 항목을 랜덤 선택 (풀 크기 1이면 그대로). */
+  private pickFromPool(pool: number[], tag: string): number {
+    if (pool.length <= 1) return pool[0];
+    let idx = Math.floor(Math.random() * pool.length);
+    if (idx === this.lastPick.get(tag)) idx = (idx + 1) % pool.length;
+    this.lastPick.set(tag, idx);
+    return pool[idx];
+  }
+
+  /** ASMR 풀 사운드 지연 로드 + 캐시 (자산 모듈 id 기준). */
+  private async getAsmrSound(asset: number): Promise<Audio.Sound | null> {
+    const cached = this.asmrSounds.get(asset);
+    if (cached) return cached;
+    try {
+      const { sound } = await Audio.Sound.createAsync(asset, {
+        volume: effectVolume(),
+      });
+      this.asmrSounds.set(asset, sound);
+      return sound;
+    } catch (e) {
+      console.warn('Failed to load ASMR sound', e);
+      return null;
+    }
+  }
+
+  /** ASMR 임팩트 풀을 미리 디코드해 첫 터치 지연을 없앤다(감각 방 진입 시 호출). */
+  async preloadAsmr(): Promise<void> {
+    const assets = new Set<number>();
+    for (const mat of Object.keys(ASMR_POOLS) as AsmrMaterial[]) {
+      for (const a of ASMR_POOLS[mat].impacts) assets.add(a);
+    }
+    await Promise.all(
+      [...assets].map((a) =>
+        this.getAsmrSound(a).then(() => {
+          /* 결과 무시 */
+        }),
+      ),
+    );
+  }
+
+  /** 닿는 순간 터지는 임팩트 — 재질 풀에서 매번 랜덤(첨벙/찰싹/꾸덕 등). */
+  async playImpact(material: AsmrMaterial): Promise<void> {
+    if (!useSettingsStore.getState().soundEnabled) return;
+    const asset = this.pickFromPool(
+      ASMR_POOLS[material].impacts,
+      `${material}_imp`,
+    );
+    const sound = await this.getAsmrSound(asset);
+    if (!sound) return;
+    try {
+      await sound.setVolumeAsync(effectVolume());
       await sound.replayAsync();
     } catch {
       /* ignore */
@@ -160,12 +166,16 @@ class SoundManagerClass {
 
   /**
    * ASMR 접촉 루프 시작 — 누르고 문지르는 동안 단일 사운드를 반복 재생해 끊김 없이 이어준다.
-   * (드래그마다 one-shot을 쪼개 재생하면 오디오 채널 고갈·디지털 클리핑이 생긴다)
+   * 재질 루프 풀에서 랜덤 선택(같은 루프가 재생 중이면 볼륨만 갱신).
    */
-  async startLoop(key: SoundKey, volume = 1): Promise<void> {
+  async startLoop(material: AsmrMaterial, volume = 1): Promise<void> {
     if (!useSettingsStore.getState().soundEnabled) return;
     const vol = Math.max(0, Math.min(1, effectVolume() * volume));
-    if (this.loopKey === key && this.loopSound) {
+    const asset = this.pickFromPool(
+      ASMR_POOLS[material].loops,
+      `${material}_loop`,
+    );
+    if (this.loopAsset === asset && this.loopSound) {
       try {
         await this.loopSound.setStatusAsync({ shouldPlay: true, volume: vol });
       } catch {
@@ -175,15 +185,15 @@ class SoundManagerClass {
     }
     await this.stopLoop();
     try {
-      const { sound } = await Audio.Sound.createAsync(SOUND_ASSETS[key], {
+      const { sound } = await Audio.Sound.createAsync(asset, {
         isLooping: true,
         volume: vol,
       });
       this.loopSound = sound;
-      this.loopKey = key;
+      this.loopAsset = asset;
       await sound.playAsync();
     } catch (e) {
-      console.warn(`Failed to start loop: ${key}`, e);
+      console.warn('Failed to start ASMR loop', e);
     }
   }
 
@@ -203,7 +213,7 @@ class SoundManagerClass {
   async stopLoop(): Promise<void> {
     const s = this.loopSound;
     this.loopSound = null;
-    this.loopKey = null;
+    this.loopAsset = null;
     if (s) {
       try {
         await s.stopAsync();
@@ -307,6 +317,15 @@ class SoundManagerClass {
       }
     }
     this.sounds.clear();
+    for (const s of this.asmrSounds.values()) {
+      try {
+        await s.unloadAsync();
+      } catch {
+        // ignore
+      }
+    }
+    this.asmrSounds.clear();
+    this.lastPick.clear();
     await this.stopBGM();
     await this.stopLoop();
     this.loaded = false;

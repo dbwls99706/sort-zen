@@ -1,9 +1,8 @@
 """Sort ZEN — ASMR 감각 방 '접촉 루프' 사운드 생성기 (끊김 없는 텍스처 루프).
 
-기존 mp3 루프(water_pour/slime/handcream/shaving_cream/sponge)는 순수 톤(예: 물이
-~140Hz 단일 사인이라 '삐용' 허밍)이라 재질감이 없었다. 이 스크립트는 각 재질을
-넓은 대역의 노이즈 텍스처로 합성하고 끝~앞을 이퀄파워 크로스페이드해 심리스 루프를
-만든다. 절차적 생성이라 외부 자산/라이선스가 필요 없고 결정론적으로 재현된다.
+물/폼 루프는 CC0 실제 녹음(src/audio/asmrPools.ts)으로 대체됐고, 전용 CC0가 없는
+slime/handcream/sponge 루프만 절차적 합성으로 유지한다. 각 재질을 넓은 대역 노이즈
+텍스처로 합성하고 끝~앞을 이퀄파워 크로스페이드해 심리스 루프를 만든다(결정론적 재현).
 
 사용법: python scripts/gen-asmr-loops.py   (ffmpeg 필요 — mp3 인코딩)
 """
@@ -84,16 +83,6 @@ def bubbles(out: np.ndarray, count: int, f_lo: float, f_hi: float, gain: float) 
 # 재질별 텍스처
 # ----------------------------------------------------------------------------
 
-def water_loop() -> np.ndarray:
-    """흐르는 물: 넓은 대역 노이즈 + 느린 움직임 + 잔거품('졸졸')."""
-    n = int(GEN_LEN * FR)
-    flow = band(RNG.standard_normal(n), 320, 2600)
-    flow *= smooth_lfo(n, 0.7, 0.55, 1.0) * smooth_lfo(n, 0.23, 0.65, 1.0)
-    out = flow / (np.max(np.abs(flow)) + 1e-9) * 0.55
-    bubbles(out, int(LOOP_LEN * 8), 700, 2200, 0.18)
-    return out
-
-
 def slime_loop() -> np.ndarray:
     """끈적 슬라임: 저-중역 노이즈 + 느린 스퀠치 워블 + 글룹."""
     n = int(GEN_LEN * FR)
@@ -110,15 +99,6 @@ def handcream_loop() -> np.ndarray:
     nz = band(RNG.standard_normal(n), 280, 2000)
     nz *= smooth_lfo(n, 1.1, 0.4, 1.0) * smooth_lfo(n, 0.33, 0.6, 1.0)
     out = nz / (np.max(np.abs(nz)) + 1e-9) * 0.5
-    return out
-
-
-def shaving_loop() -> np.ndarray:
-    """폼/쉐이빙: 공기감 있는 고역 히스, 부드러운 거품 꺼짐."""
-    n = int(GEN_LEN * FR)
-    nz = band(RNG.standard_normal(n), 1200, 5500)
-    nz *= smooth_lfo(n, 0.9, 0.5, 1.0) * smooth_lfo(n, 2.7, 0.7, 1.0)
-    out = nz / (np.max(np.abs(nz)) + 1e-9) * 0.42
     return out
 
 
@@ -159,10 +139,8 @@ def write_mp3(name: str, mono: np.ndarray, bitrate: str = "96k") -> None:
 
 
 def main() -> None:
-    write_mp3("water_pour.mp3", water_loop())
     write_mp3("slime.mp3", slime_loop())
     write_mp3("handcream.mp3", handcream_loop())
-    write_mp3("shaving_cream.mp3", shaving_loop())
     write_mp3("sponge.mp3", sponge_loop())
     print("done.")
 
