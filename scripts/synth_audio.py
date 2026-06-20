@@ -71,25 +71,39 @@ def marimba_note(freq: float, dur: float, tau: float = 0.45) -> np.ndarray:
     return out
 
 
-def water_texture(dur: float, gain: float = 0.16) -> np.ndarray:
-    """액체 흐름 + 물방울 텍스처(밴드패스 노이즈 스윕 + 감쇠 사인 블립)."""
+def pour_sound(freq: float, dur: float = 0.5) -> np.ndarray:
+    """물 붓기 소리(메인): 시작 '퐁당' + 흐르는 '쪼르륵' 거품 + 물방울.
+
+    색상 음정(freq)에 따라 흐름 밴드/물방울/퐁당 피치를 살짝 틴트해 색마다
+    소리 높낮이가 미세하게 다르게 한다('음정 살짝'). 마림바 톤은 make_pour에서
+    아주 작게(은은하게) 더해진다.
+    """
     n = int(FR * dur)
+    t = np.arange(n) / FR
+    pitch = freq / 261.63  # c4 기준 배율(1.0~3.0): 높은 색일수록 소리도 살짝 높게
+    out = np.zeros(n)
+
+    # 1) 흐르는 물줄기: 위로 스윕하는 밴드패스 노이즈('쪼르륵'). 색상으로 중심 틴트.
     noise = RNG.standard_normal(n)
-    # 800Hz→2400Hz로 이동하는 밴드패스로 '쪼르륵' 흐름 표현
-    center = np.linspace(800, 2400, n)
-    flow = bandpass_sweep(noise, center, q=4.0)
-    env = mallet_env(n, 0.02, dur * 0.5)
-    flow *= env
-    # 물방울 2~3방울: 짧고 높은 감쇠 사인
-    drops = np.zeros(n)
+    center = np.linspace(640 * pitch, 2500 * pitch, n)
+    flow = bandpass_sweep(noise, center, q=2.2)
+    flow /= (np.max(np.abs(flow)) + 1e-9)
+    out += 0.55 * flow * mallet_env(n, 0.015, dur * 0.6)
+
+    # 2) 시작 '퐁당'(plop): 낮은 사인 텀프 + 하강 피치
+    plop_f = 175 * (0.7 + 0.3 * pitch)
+    plop = np.sin(2 * np.pi * plop_f * t * (1 - 0.4 * np.exp(-t / 0.05)))
+    out += 0.5 * plop * np.exp(-t / 0.06)
+
+    # 3) 물방울 2~3: 짧고 높은 감쇠 사인(피치 틴트)
     for _ in range(3):
-        f = RNG.uniform(1500, 3200)
-        start = int(RNG.uniform(0.04, 0.6) * n)
-        ln = min(n - start, int(0.09 * FR))
+        f = RNG.uniform(1400, 3000) * (0.6 + 0.4 * pitch)
+        start = int(RNG.uniform(0.08, 0.7) * n)
+        ln = min(n - start, int(0.08 * FR))
         tt = np.arange(ln) / FR
-        drops[start:start + ln] += np.sin(2 * np.pi * f * tt) * np.exp(-tt / 0.025) * 0.5
-    mix = flow / (np.max(np.abs(flow)) + 1e-9) * 0.7 + drops
-    return gain * mix
+        out[start:start + ln] += np.sin(2 * np.pi * f * tt) * np.exp(-tt / 0.02) * 0.22
+
+    return out
 
 
 # ----------------------------------------------------------------------------
@@ -219,11 +233,11 @@ def write_mp3_stereo(name: str, stereo: np.ndarray, bitrate: str = "128k") -> No
 # ----------------------------------------------------------------------------
 
 def make_pour(name: str, freq: float) -> None:
-    # 또렷한 말렛 타격감을 위해 tau를 짧게(0.3) → 펀치 + 자연 감쇠
-    tone = marimba_note(freq, 0.55, tau=0.30)
-    tex = water_texture(0.4, gain=0.16)
-    tone[: len(tex)] += tex
-    render(name, tone, wet=0.16, decay=0.5)
+    # 물소리 위주(메인) + 마림바 음정 살짝(은은한 16%)으로 색마다 미세한 높낮이만 남긴다.
+    water = pour_sound(freq, 0.5)
+    tone = marimba_note(freq, 0.45, tau=0.28) * 0.16
+    water[: len(tone)] += tone[: len(water)]
+    render(name, water, wet=0.14, decay=0.45)
 
 
 def make_select() -> None:
