@@ -9,7 +9,7 @@ import { Platform } from 'react-native';
  *
  * placeholder 상태(미설정)에서는 점수 제출/리더보드 열기가 안전하게 no-op이 된다.
  */
-export const LEADERBOARD_ID_HIGHEST_LEVEL = 'PLACEHOLDER_HIGHEST_LEVEL';
+export const LEADERBOARD_ID_HIGHEST_LEVEL = 'CgkItYmFzfUeEAIQAQ';
 
 /** 리더보드 ID가 실제 값으로 교체되었는지 */
 export const isLeaderboardConfigured = (): boolean =>

@@ -51,7 +51,7 @@
       [
         "./plugins/withPlayGamesServices",
         {
-          "appId": "0"
+          "appId": "1062360663221"
         }
       ],
       "expo-font"
@@ -67,6 +67,6 @@
     "owner": "dbwls99706"
   },
   "react-native-google-leaderboards-and-achievements": {
-    "projectId": "0"
+    "projectId": "1062360663221"
   }
 }
