@@ -169,6 +169,8 @@ export default function ASMRSensoryScreen() {
   const lastSoundTime = useRef(0);
   // 임팩트 원샷(첨벙/찰싹) 전용 스로틀 — 빠르게 문질러도 음이 겹쳐 깨지지 않게 한다
   const lastTapTime = useRef(0);
+  // 루프 볼륨 변조 스로틀 — 매 프레임 setVolume 왕복이 임팩트 재생과 경합하지 않게 한다
+  const lastLoopVolTime = useRef(0);
 
   const activeMaterialRef = useRef(activeMaterial);
   useEffect(() => {
@@ -234,10 +236,14 @@ export default function ASMRSensoryScreen() {
       screenTranslateY.value = withTiming((rand() - 0.5) * 22 * mat.screenShakeFactor * shake, { duration: 50 });
       screenRotate.value = withTiming((rand() - 0.5) * 0.06 * mat.screenShakeFactor * shake, { duration: 50 });
 
-      // 문지르는 속도에 비례해 접촉 루프 볼륨을 키운다 (유기적 마찰음)
-      SoundManager.setLoopVolume(0.3 + Math.min(0.6, speed / 25));
-
       const now = nowMs();
+      // 문지르는 속도에 비례해 접촉 루프 볼륨을 키운다 (유기적 마찰음).
+      // ~50ms 간격으로만 갱신해 setVolume 왕복이 임팩트 재생을 밀어내지 않게 한다.
+      if (now - lastLoopVolTime.current > 50) {
+        SoundManager.setLoopVolume(0.3 + Math.min(0.6, speed / 25));
+        lastLoopVolTime.current = now;
+      }
+
       const throttleTime = mat.id === 'water' ? 65 : 110;
       if (speed > 1.5 && now - lastSoundTime.current > throttleTime) {
         Haptic.light();

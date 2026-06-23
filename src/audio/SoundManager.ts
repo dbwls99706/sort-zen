@@ -72,8 +72,12 @@ class SoundManagerClass {
   // ASMR 접촉 루프 — 누르고 문지르는 동안 끊김 없이 이어지는 단일 인스턴스(볼륨 변조)
   private loopSound: Audio.Sound | null = null;
   private loopAsset: number | null = null;
-  // ASMR 재질 풀(CC0) 사운드 캐시 — 자산 모듈 id로 캐싱해 재사용한다.
+  // 비동기 start/stop 레이스 방지 토큰 — start 도중 stop(또는 다른 start)이 끼면 무효화한다.
+  private loopToken = 0;
+  // ASMR 임팩트 풀(CC0) 사운드 캐시 — 자산 모듈 id로 캐싱해 재사용한다(one-shot).
   private asmrSounds: Map<number, Audio.Sound> = new Map();
+  // ASMR 접촉 루프 풀 인스턴스 캐시 — isLooping=true로 미리 로드해 제스처 경로에서 디코드를 없앤다.
+  private loopSounds: Map<number, Audio.Sound> = new Map();
   // 풀별 직전 선택 인덱스 — 바로 같은 소리가 연속되지 않게 한다(랜덤성 체감 ↑).
   private lastPick: Map<string, number> = new Map();
 
@@ -132,19 +136,39 @@ class SoundManagerClass {
     }
   }
 
-  /** ASMR 임팩트 풀을 미리 디코드해 첫 터치 지연을 없앤다(감각 방 진입 시 호출). */
-  async preloadAsmr(): Promise<void> {
-    const assets = new Set<number>();
-    for (const mat of Object.keys(ASMR_POOLS) as AsmrMaterial[]) {
-      for (const a of ASMR_POOLS[mat].impacts) assets.add(a);
+  /** ASMR 접촉 루프 인스턴스를 isLooping=true로 지연 로드 + 캐시 (정지 상태로 보관). */
+  private async getLoopSound(asset: number): Promise<Audio.Sound | null> {
+    const cached = this.loopSounds.get(asset);
+    if (cached) return cached;
+    try {
+      const { sound } = await Audio.Sound.createAsync(asset, {
+        isLooping: true,
+        shouldPlay: false,
+        volume: 0,
+      });
+      this.loopSounds.set(asset, sound);
+      return sound;
+    } catch (e) {
+      console.warn('Failed to load ASMR loop', e);
+      return null;
     }
-    await Promise.all(
-      [...assets].map((a) =>
-        this.getAsmrSound(a).then(() => {
-          /* 결과 무시 */
-        }),
-      ),
-    );
+  }
+
+  /**
+   * ASMR 임팩트·루프 풀을 미리 디코드해 첫 터치 지연과 제스처 중 createAsync 블로킹을 없앤다
+   * (감각 방 진입 시 호출). 루프까지 미리 로드해야 누를 때 임팩트가 밀리지 않는다.
+   */
+  async preloadAsmr(): Promise<void> {
+    const impacts = new Set<number>();
+    const loops = new Set<number>();
+    for (const mat of Object.keys(ASMR_POOLS) as AsmrMaterial[]) {
+      for (const a of ASMR_POOLS[mat].impacts) impacts.add(a);
+      for (const a of ASMR_POOLS[mat].loops) loops.add(a);
+    }
+    await Promise.all([
+      ...[...impacts].map((a) => this.getAsmrSound(a).then(() => undefined)),
+      ...[...loops].map((a) => this.getLoopSound(a).then(() => undefined)),
+    ]);
   }
 
   /** 닿는 순간 터지는 임팩트 — 재질 풀에서 매번 랜덤(첨벙/찰싹/꾸덕 등). */
@@ -157,8 +181,9 @@ class SoundManagerClass {
     const sound = await this.getAsmrSound(asset);
     if (!sound) return;
     try {
-      await sound.setVolumeAsync(effectVolume());
-      await sound.replayAsync();
+      // 볼륨은 로드 시점/설정 변경 시에만 반영한다. 매 탭마다 setVolume 왕복을 넣으면
+      // 그만큼 임팩트 재생이 지연돼 타이밍이 불규칙해진다 → replay 한 번만 호출.
+      await sound.replayAsync({ volume: effectVolume() });
     } catch {
       /* ignore */
     }
@@ -170,30 +195,32 @@ class SoundManagerClass {
    */
   async startLoop(material: AsmrMaterial, volume = 1): Promise<void> {
     if (!useSettingsStore.getState().soundEnabled) return;
+    const token = ++this.loopToken;
     const vol = Math.max(0, Math.min(1, effectVolume() * volume));
     const asset = this.pickFromPool(
       ASMR_POOLS[material].loops,
       `${material}_loop`,
     );
-    if (this.loopAsset === asset && this.loopSound) {
-      try {
-        await this.loopSound.setStatusAsync({ shouldPlay: true, volume: vol });
-      } catch {
+    // 미리 로드된 인스턴스를 재사용한다(제스처 경로에서 createAsync 디코드 금지).
+    const sound = await this.getLoopSound(asset);
+    // 로드를 기다리는 사이 stop 또는 다른 start가 끼면 이 시작은 무효 — 고아 루프 방지.
+    if (token !== this.loopToken || !sound) return;
+    // 다른 자산이 재생 중이면 멈춘다(인스턴스는 캐시에 유지).
+    if (this.loopSound && this.loopAsset !== asset) {
+      this.loopSound.setStatusAsync({ shouldPlay: false }).catch(() => {
         /* ignore */
-      }
-      return;
-    }
-    await this.stopLoop();
-    try {
-      const { sound } = await Audio.Sound.createAsync(asset, {
-        isLooping: true,
-        volume: vol,
       });
-      this.loopSound = sound;
-      this.loopAsset = asset;
-      await sound.playAsync();
-    } catch (e) {
-      console.warn('Failed to start ASMR loop', e);
+    }
+    this.loopSound = sound;
+    this.loopAsset = asset;
+    try {
+      await sound.setStatusAsync({
+        shouldPlay: true,
+        volume: vol,
+        positionMillis: 0,
+      });
+    } catch {
+      /* ignore */
     }
   }
 
@@ -209,19 +236,15 @@ class SoundManagerClass {
     }
   }
 
-  /** 접촉 루프 종료 (손을 뗄 때) */
+  /** 접촉 루프 종료 (손을 뗄 때) — 인스턴스는 캐시에 유지하고 일시정지만 한다(재사용). */
   async stopLoop(): Promise<void> {
+    this.loopToken++; // 진행 중인 start 무효화
     const s = this.loopSound;
     this.loopSound = null;
     this.loopAsset = null;
     if (s) {
       try {
-        await s.stopAsync();
-      } catch {
-        /* ignore */
-      }
-      try {
-        await s.unloadAsync();
+        await s.setStatusAsync({ shouldPlay: false });
       } catch {
         /* ignore */
       }
@@ -325,9 +348,17 @@ class SoundManagerClass {
       }
     }
     this.asmrSounds.clear();
+    await this.stopLoop();
+    for (const s of this.loopSounds.values()) {
+      try {
+        await s.unloadAsync();
+      } catch {
+        // ignore
+      }
+    }
+    this.loopSounds.clear();
     this.lastPick.clear();
     await this.stopBGM();
-    await this.stopLoop();
     this.loaded = false;
   }
 }
