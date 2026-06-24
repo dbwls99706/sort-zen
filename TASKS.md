@@ -142,3 +142,7 @@
 - [x] T164 Expo config plugin `withPlayGamesServices` — Play Games APP_ID 메타데이터/string 리소스 주입 + app.json 등록
 - [ ] T165 (외부 계정·사람 필요) Play Console: Play Games 프로젝트 생성·OAuth 동의·서명키 SHA-1 등록·리더보드 ID 발급 → `constants.ts` LEADERBOARD_ID + app.json appId에 실값 반영 (docs/06-game-services.md). 완료 전엔 게스트 플레이만 동작
 - [ ] T166 (후속) 전체 진척(코인·도전과제·설정) 기기간 클라우드 동기화 — Play Games Saved Games API 또는 백엔드. 현 라이브러리는 리더보드/도전과제만 지원
+
+## Phase 20: 인앱 업데이트 (구버전 이탈 방지)
+> 사용자가 구버전에 머무르면 사운드/크래시 핫픽스가 전파되지 않음. 앱 시작 시 Play가 최신 여부를 판단해 업데이트 플로우를 띄운다.
+- [x] T170 `UpdateManager`(안드) + `.web.ts` no-op 스텁 — Play 인앱 업데이트(expo-in-app-updates) 캡슐화. 시작 시 1회 checkAndStartUpdate, Play 우선순위로 즉시/유연 자동 선택. 컴포넌트 SDK 직접호출 금지 정책 준수. `_layout` init 연결. 미설정/예외/비안드로이드는 안전 no-op. 버전 소스 직접 운영 0(Play가 진실 공급원)
