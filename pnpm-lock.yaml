@@ -15,8 +15,8 @@ importers:
         specifier: 2.1.2
         version: 2.1.2(react-native@0.79.6(@babel/core@7.29.0)(@types/react@19.0.14)(react@19.0.0))
       '@shopify/react-native-skia':
-        specifier: 2.0.0-next.4
-        version: 2.0.0-next.4(react-native-reanimated@3.17.5(@babel/core@7.29.0)(react-native@0.79.6(@babel/core@7.29.0)(@types/react@19.0.14)(react@19.0.0))(react@19.0.0))(react-native@0.79.6(@babel/core@7.29.0)(@types/react@19.0.14)(react@19.0.0))(react@19.0.0)
+        specifier: 2.2.0
+        version: 2.2.0(react-native-reanimated@3.17.5(@babel/core@7.29.0)(react-native@0.79.6(@babel/core@7.29.0)(@types/react@19.0.14)(react@19.0.0))(react@19.0.0))(react-native@0.79.6(@babel/core@7.29.0)(@types/react@19.0.14)(react@19.0.0))(react@19.0.0)
       expo:
         specifier: ~53.0.27
         version: 53.0.27(@babel/core@7.29.0)(@expo/metro-runtime@5.0.5(react-native@0.79.6(@babel/core@7.29.0)(@types/react@19.0.14)(react@19.0.0)))(react-native@0.79.6(@babel/core@7.29.0)(@types/react@19.0.14)(react@19.0.0))(react@19.0.0)
@@ -1048,8 +1048,8 @@ packages:
   '@react-navigation/routers@7.5.3':
     resolution: {integrity: sha512-1tJHg4KKRJuQ1/EvJxatrMef3NZXEPzwUIUZ3n1yJ2t7Q97siwRtbynRpQG9/69ebbtiZ8W3ScOZF/OmhvM4Rg==}
 
-  '@shopify/react-native-skia@2.0.0-next.4':
-    resolution: {integrity: sha512-NzvdgryRz6tkKMHgCChCKa3wXfN9TZhlV0/LrfIU/wKLC1uKgGXkoZgNz7Is0wwdhtao1JJJJ81fqHCGHgzk9g==}
+  '@shopify/react-native-skia@2.2.0':
+    resolution: {integrity: sha512-RHbjFShI/eoc5VeDDDDw9INbgdTxVbcOu40sUVebITuBmoO/AaEBIOtag9Ae7KddYKSOIA7tYrgolOddA6wZ7w==}
     hasBin: true
     peerDependencies:
       react: '>=19.0'
@@ -5641,7 +5641,7 @@ snapshots:
     dependencies:
       nanoid: 3.3.11
 
-  '@shopify/react-native-skia@2.0.0-next.4(react-native-reanimated@3.17.5(@babel/core@7.29.0)(react-native@0.79.6(@babel/core@7.29.0)(@types/react@19.0.14)(react@19.0.0))(react@19.0.0))(react-native@0.79.6(@babel/core@7.29.0)(@types/react@19.0.14)(react@19.0.0))(react@19.0.0)':
+  '@shopify/react-native-skia@2.2.0(react-native-reanimated@3.17.5(@babel/core@7.29.0)(react-native@0.79.6(@babel/core@7.29.0)(@types/react@19.0.14)(react@19.0.0))(react@19.0.0))(react-native@0.79.6(@babel/core@7.29.0)(@types/react@19.0.14)(react@19.0.0))(react@19.0.0)':
     dependencies:
       canvaskit-wasm: 0.40.0
       react: 19.0.0

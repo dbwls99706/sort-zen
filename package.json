@@ -17,7 +17,7 @@
   "dependencies": {
     "@expo/metro-runtime": "~5.0.5",
     "@react-native-async-storage/async-storage": "2.1.2",
-    "@shopify/react-native-skia": "2.0.0-next.4",
+    "@shopify/react-native-skia": "2.2.0",
     "expo": "~53.0.27",
     "expo-av": "~15.1.7",
     "expo-build-properties": "~0.14.8",
