@@ -30,7 +30,7 @@ const LEADERBOARD_GRADLE_PROPS = {
   GoogleLeaderboards_compileSdkVersion: '35',
   GoogleLeaderboards_targetSdkVersion: '35',
   GoogleLeaderboards_minSdkVersion: '24',
-  GoogleLeaderboards_kotlinVersion: '1.9.24',
+  GoogleLeaderboards_kotlinVersion: '2.0.21',
 };
 
 function withLeaderboardGradleProps(config) {
