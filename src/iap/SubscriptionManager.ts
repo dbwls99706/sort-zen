@@ -1,17 +1,14 @@
 import {
   initConnection,
   endConnection,
-  getSubscriptions,
-  getProducts,
-  requestSubscription,
+  fetchProducts,
   requestPurchase,
   purchaseUpdatedListener,
   purchaseErrorListener,
   finishTransaction,
   getAvailablePurchases,
-  Subscription,
-} from 'react-native-iap';
-import type { SubscriptionAndroid } from 'react-native-iap';
+  ProductSubscriptionAndroid,
+} from 'expo-iap';
 import { useUserStore } from '../store/userStore';
 
 const SUBSCRIPTION_IDS = [
@@ -29,8 +26,7 @@ class SubscriptionManagerClass {
       await initConnection();
 
       this.purchaseUpdateSub = purchaseUpdatedListener(async (purchase) => {
-        const receipt = purchase.transactionReceipt;
-        if (!receipt) return;
+        if (!purchase.purchaseToken) return;
         this.activatePremium(purchase.productId);
         // 리스너 콜백은 절대 reject하면 안 된다. finishTransaction이 실패하면
         // 다음 실행 시 restorePurchases가 미완료 거래를 복구한다.
@@ -57,34 +53,21 @@ class SubscriptionManagerClass {
     lifetimePrice: string;
   }> {
     try {
-      const subs = await getSubscriptions({ skus: SUBSCRIPTION_IDS });
-      const products = await getProducts({ skus: PRODUCT_IDS });
+      const subs =
+        (await fetchProducts({ skus: SUBSCRIPTION_IDS, type: 'subs' })) ?? [];
+      const products =
+        (await fetchProducts({ skus: PRODUCT_IDS, type: 'in-app' })) ?? [];
 
-      const monthly = subs.find((s) => s.productId === 'sortzen_remove_ads_monthly');
-      const yearly = subs.find((s) => s.productId === 'sortzen_remove_ads_yearly');
-      const lifetime = products.find((p) => p.productId === 'sortzen_remove_ads_lifetime');
-
-      const getSubPrice = (sub: Subscription | undefined, defaultPrice: string) => {
-        if (!sub) return defaultPrice;
-        const androidSub = sub as SubscriptionAndroid;
-        const offerDetails = androidSub.subscriptionOfferDetails;
-        if (offerDetails && offerDetails.length > 0) {
-          const phases = offerDetails[0]?.pricingPhases?.pricingPhaseList;
-          if (phases && phases.length > 0) {
-            return phases[0].formattedPrice;
-          }
-        }
-        // iOS는 localizedPrice를 제공한다(Android 타입엔 없으므로 in으로 내로잉).
-        if ('localizedPrice' in sub) {
-          return sub.localizedPrice || defaultPrice;
-        }
-        return defaultPrice;
-      };
+      const monthly = subs.find((s) => s.id === 'sortzen_remove_ads_monthly');
+      const yearly = subs.find((s) => s.id === 'sortzen_remove_ads_yearly');
+      const lifetime = products.find(
+        (p) => p.id === 'sortzen_remove_ads_lifetime'
+      );
 
       return {
-        monthlyPrice: getSubPrice(monthly, '₩2,500'),
-        yearlyPrice: getSubPrice(yearly, '₩19,900'),
-        lifetimePrice: lifetime?.localizedPrice || '₩9,900',
+        monthlyPrice: monthly?.displayPrice || '₩2,500',
+        yearlyPrice: yearly?.displayPrice || '₩19,900',
+        lifetimePrice: lifetime?.displayPrice || '₩9,900',
       };
     } catch (e) {
       console.warn('[SubscriptionManager] Failed to get offerings, returning fallbacks', e);
@@ -97,19 +80,30 @@ class SubscriptionManagerClass {
   }
 
   async buySubscription(sku: string): Promise<void> {
-    const subs = await getSubscriptions({ skus: [sku] });
-    const sub = subs[0] as SubscriptionAndroid | undefined;
-    const offerToken =
-      sub?.subscriptionOfferDetails?.[0]?.offerToken;
+    const subs = (await fetchProducts({ skus: [sku], type: 'subs' })) ?? [];
+    const sub = subs.find((s) => s.id === sku) as
+      | ProductSubscriptionAndroid
+      | undefined;
+    const offerToken = sub?.subscriptionOfferDetailsAndroid?.[0]?.offerToken;
 
-    await requestSubscription({
-      sku,
-      ...(offerToken ? { subscriptionOffers: [{ sku, offerToken }] } : {}),
+    await requestPurchase({
+      request: {
+        google: {
+          skus: [sku],
+          ...(offerToken
+            ? { subscriptionOffers: [{ sku, offerToken }] }
+            : {}),
+        },
+      },
+      type: 'subs',
     });
   }
 
   async buyLifetime(): Promise<void> {
-    await requestPurchase({ skus: PRODUCT_IDS });
+    await requestPurchase({
+      request: { google: { skus: PRODUCT_IDS } },
+      type: 'in-app',
+    });
   }
 
   async restorePurchases(): Promise<number> {

@@ -29,7 +29,7 @@
   "react-native-reanimated": "~4.1.0",
   "@shopify/react-native-skia": "2.2.x",
   "react-native-google-mobile-ads": "^16.4.0",
-  "react-native-iap": "^12.16.4",
+  "expo-iap": "^4.6.0",
   "expo-haptics": "~15.0.0",
   "expo-av": "~16.0.0",
   "@react-native-async-storage/async-storage": "2.2.x",
@@ -39,6 +39,8 @@
 ```
 
 > Android 타겟: `targetSdkVersion 36` (Android 16) — Play 정책상 2026-08-31부터 필수.
+> 결제: `expo-iap`의 OpenIAP(openiap-google)가 Play Billing Library 9.x를 사용 —
+> Play 정책상 2026-08-31부터 Billing 8.0.0+ 필수.
 
 ---
 

@@ -149,3 +149,4 @@
 ## Phase 21: Google Play 2026-08-31 정책 대응 (대상 API 36 + Billing 8+)
 > Play Console 경고 2건: ① 대상 API 수준(Android 16, API 36) 미달 ② Play 결제 라이브러리 8.0.0 미만(react-native-iap 12.x = Billing 7.0.0). 기한 2026-08-31.
 - [x] T180 Expo SDK 54 업그레이드 — RN 0.81.5/React 19.1/Reanimated 4(+worklets)/Skia 2.2.12 등 번들 버전 정렬, compileSdk·targetSdk 36(Android 16), Kotlin 2.1.20(app.json 구버전 override 제거), withPlayGamesServices gradle 프로퍼티 36/2.1.20 동기화, Reanimated 4에서 제거된 `Animated.SharedValue` 타입 교체, expo-system-ui 추가(userInterfaceStyle 적용). prebuild로 SDK 36 반영 확인
+- [x] T181 결제 라이브러리 교체 — react-native-iap 12.16.4(Billing 7.0.0) 제거 → expo-iap 4.6.0(openiap-google 2.4.1 = Billing 9.1.0). SubscriptionManager를 OpenIAP API(fetchProducts/requestPurchase/displayPrice/purchaseToken)로 마이그레이션, 공개 API·구매 복원·finishTransaction 정책 유지. prebuild로 BILLING 권한·OpenIAP 의존성 주입 확인. 광고 SDK도 SDK 54 호환 16.4.0(GMA 25.4.0)으로 상향

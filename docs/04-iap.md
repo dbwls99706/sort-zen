@@ -1,7 +1,8 @@
 # 04. 구독 / IAP (광고 제거)
 
 > 위치: `src/iap/`
-> 라이브러리: `react-native-iap`
+> 라이브러리: `expo-iap` (OpenIAP 기반, Google Play Billing Library 9.x 사용 —
+> Play 정책상 2026-08-31부터 Billing 8.0.0+ 필수)
 
 ---
 
@@ -35,17 +36,14 @@
 import {
   initConnection,
   endConnection,
-  getSubscriptions,
-  getProducts,
-  requestSubscription,
+  fetchProducts,
   requestPurchase,
   purchaseUpdatedListener,
   purchaseErrorListener,
   finishTransaction,
   getAvailablePurchases,
-  Subscription,
-  Product,
-} from 'react-native-iap';
+  ProductSubscriptionAndroid,
+} from 'expo-iap';
 import { useUserStore } from '@/store/userStore';
 
 const SUBSCRIPTION_IDS = [
@@ -63,8 +61,7 @@ class SubscriptionManagerClass {
       await initConnection();
 
       this.purchaseUpdateSub = purchaseUpdatedListener(async (purchase) => {
-        const receipt = purchase.transactionReceipt;
-        if (receipt) {
+        if (purchase.purchaseToken) {
           this.activatePremium(purchase.productId);
           await finishTransaction({ purchase, isConsumable: false });
         }
@@ -81,18 +78,35 @@ class SubscriptionManagerClass {
     }
   }
 
-  async getOfferings(): Promise<{ subs: Subscription[]; products: Product[] }> {
-    const subs = await getSubscriptions({ skus: SUBSCRIPTION_IDS });
-    const products = await getProducts({ skus: PRODUCT_IDS });
-    return { subs, products };
+  async getOfferings() {
+    const subs = await fetchProducts({ skus: SUBSCRIPTION_IDS, type: 'subs' });
+    const products = await fetchProducts({ skus: PRODUCT_IDS, type: 'in-app' });
+    return { subs, products }; // 가격 표시는 공통 필드 displayPrice 사용
   }
 
   async buySubscription(sku: string) {
-    await requestSubscription({ sku });
+    // Android 구독은 offerToken이 필수 — 상품 조회 후 첫 오퍼를 사용
+    const subs = (await fetchProducts({ skus: [sku], type: 'subs' })) ?? [];
+    const sub = subs.find((s) => s.id === sku) as
+      | ProductSubscriptionAndroid
+      | undefined;
+    const offerToken = sub?.subscriptionOfferDetailsAndroid?.[0]?.offerToken;
+    await requestPurchase({
+      request: {
+        google: {
+          skus: [sku],
+          ...(offerToken ? { subscriptionOffers: [{ sku, offerToken }] } : {}),
+        },
+      },
+      type: 'subs',
+    });
   }
 
   async buyLifetime() {
-    await requestPurchase({ skus: PRODUCT_IDS });
+    await requestPurchase({
+      request: { google: { skus: PRODUCT_IDS } },
+      type: 'in-app',
+    });
   }
 
   async restorePurchases(): Promise<number> {
@@ -251,7 +265,7 @@ export const useUserStore = create<UserState>()(
 
 ## 7. 호출부 규약
 
-- 컴포넌트에서 `react-native-iap`를 직접 import 금지.
+- 컴포넌트에서 `expo-iap`를 직접 import 금지.
 - 무조건 `SubscriptionManager`의 메서드만 호출.
 - `isPremium` 상태는 `useUserStore`로만 읽는다.
 
