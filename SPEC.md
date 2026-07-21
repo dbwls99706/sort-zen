@@ -12,7 +12,7 @@
 | 장르 | 캐주얼 정렬 퍼즐 (Sort puzzle) |
 | 핵심 컨셉 | 실패 없는 ZEN + 만족스러운 ASMR + 무한 절차적 레벨 |
 | 플랫폼 | Android 우선 (Play Store), iOS는 추후 |
-| 스택 | Expo SDK 52 / TypeScript / Reanimated 3 / Skia / Zustand |
+| 스택 | Expo SDK 54 / TypeScript / Reanimated 4 / Skia / Zustand |
 | 수익 모델 | AdMob (배너/전면/리워드) + 광고 제거 구독/평생 |
 | 타겟 ARPDAU | $0.05~0.15 (캐주얼 퍼즐 평균) |
 
@@ -22,21 +22,23 @@
 
 ```json
 {
-  "expo": "~52.0.0",
-  "react-native": "0.76.x",
-  "typescript": "^5.3.0",
+  "expo": "~54.0.0",
+  "react-native": "0.81.x",
+  "typescript": "~5.9.0",
   "zustand": "^5.0.0",
-  "react-native-reanimated": "~3.16.0",
-  "@shopify/react-native-skia": "1.5.x",
-  "react-native-google-mobile-ads": "^14.0.0",
-  "react-native-iap": "^12.15.0",
-  "expo-haptics": "~14.0.0",
-  "expo-av": "~15.0.0",
-  "@react-native-async-storage/async-storage": "1.23.x",
-  "expo-localization": "~16.0.0",
-  "expo-router": "~4.0.0"
+  "react-native-reanimated": "~4.1.0",
+  "@shopify/react-native-skia": "2.2.x",
+  "react-native-google-mobile-ads": "^16.4.0",
+  "react-native-iap": "^12.16.4",
+  "expo-haptics": "~15.0.0",
+  "expo-av": "~16.0.0",
+  "@react-native-async-storage/async-storage": "2.2.x",
+  "expo-localization": "~17.0.0",
+  "expo-router": "~6.0.0"
 }
 ```
+
+> Android 타겟: `targetSdkVersion 36` (Android 16) — Play 정책상 2026-08-31부터 필수.
 
 ---
 

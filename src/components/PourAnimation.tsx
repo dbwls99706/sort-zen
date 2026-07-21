@@ -6,6 +6,7 @@ import Animated, {
   withTiming,
   runOnJS,
   Easing,
+  SharedValue,
 } from 'react-native-reanimated';
 
 export const POUR_DURATION_MS = 700;
@@ -77,7 +78,7 @@ export function PourAnimation({
 
 type DropletProps = {
   index: number;
-  progress: Animated.SharedValue<number>;
+  progress: SharedValue<number>;
   fromX: number;
   fromY: number;
   toX: number;
@@ -134,7 +135,7 @@ function Droplet({
 }
 
 type SplashProps = {
-  progress: Animated.SharedValue<number>;
+  progress: SharedValue<number>;
   x: number;
   y: number;
   color: string;

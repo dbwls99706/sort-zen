@@ -146,3 +146,6 @@
 ## Phase 20: 인앱 업데이트 (구버전 이탈 방지)
 > 사용자가 구버전에 머무르면 사운드/크래시 핫픽스가 전파되지 않음. 앱 시작 시 Play가 최신 여부를 판단해 업데이트 플로우를 띄운다.
 - [x] T170 `UpdateManager`(안드) + `.web.ts` no-op 스텁 — Play 인앱 업데이트(expo-in-app-updates) 캡슐화. 시작 시 1회 checkAndStartUpdate, Play 우선순위로 즉시/유연 자동 선택. 컴포넌트 SDK 직접호출 금지 정책 준수. `_layout` init 연결. 미설정/예외/비안드로이드는 안전 no-op. 버전 소스 직접 운영 0(Play가 진실 공급원)
+## Phase 21: Google Play 2026-08-31 정책 대응 (대상 API 36 + Billing 8+)
+> Play Console 경고 2건: ① 대상 API 수준(Android 16, API 36) 미달 ② Play 결제 라이브러리 8.0.0 미만(react-native-iap 12.x = Billing 7.0.0). 기한 2026-08-31.
+- [x] T180 Expo SDK 54 업그레이드 — RN 0.81.5/React 19.1/Reanimated 4(+worklets)/Skia 2.2.12 등 번들 버전 정렬, compileSdk·targetSdk 36(Android 16), Kotlin 2.1.20(app.json 구버전 override 제거), withPlayGamesServices gradle 프로퍼티 36/2.1.20 동기화, Reanimated 4에서 제거된 `Animated.SharedValue` 타입 교체, expo-system-ui 추가(userInterfaceStyle 적용). prebuild로 SDK 36 반영 확인

@@ -27,10 +27,10 @@ const APP_ID_STRING = 'game_services_app_id';
 // Expo 는 이 값들을 buildscript.ext 에만 두므로, prebuild 시 직접 주입해 준다.
 // (값은 android/build.gradle 의 Expo 기본값/ expo-build-properties 설정과 일치)
 const LEADERBOARD_GRADLE_PROPS = {
-  GoogleLeaderboards_compileSdkVersion: '35',
-  GoogleLeaderboards_targetSdkVersion: '35',
+  GoogleLeaderboards_compileSdkVersion: '36',
+  GoogleLeaderboards_targetSdkVersion: '36',
   GoogleLeaderboards_minSdkVersion: '24',
-  GoogleLeaderboards_kotlinVersion: '2.0.21',
+  GoogleLeaderboards_kotlinVersion: '2.1.20',
 };
 
 function withLeaderboardGradleProps(config) {
