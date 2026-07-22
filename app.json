@@ -32,19 +32,13 @@
           "androidAppId": "ca-app-pub-6671440092809524~5364355009"
         }
       ],
-      [
-        "react-native-iap",
-        {
-          "paymentProvider": "Play Store"
-        }
-      ],
+      "expo-iap",
       [
         "expo-build-properties",
         {
           "android": {
-            "kotlinVersion": "2.0.21",
-            "compileSdkVersion": 35,
-            "targetSdkVersion": 35
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36
           }
         }
       ],

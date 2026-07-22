@@ -7,7 +7,7 @@
 
 ## 0. 중요: 이 앱은 Expo Go로 못 돈다
 
-`react-native-google-mobile-ads`(AdMob), `react-native-iap`(결제),
+`react-native-google-mobile-ads`(AdMob), `expo-iap`(결제),
 `@shopify/react-native-skia`, `react-native-reanimated`(네이티브 모듈)를 쓰므로
 **Expo Go 앱으로는 실행 불가**다. 반드시 **개발 빌드(dev client)** 또는
 **EAS 빌드**로 설치해야 한다.

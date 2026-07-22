@@ -5,8 +5,8 @@ import {
   Pressable,
   Modal,
   StyleSheet,
-  Dimensions,
   Share,
+  useWindowDimensions,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -22,7 +22,6 @@ import { SoundManager } from '../audio/SoundManager';
 import { Haptic } from '../utils/haptics';
 import { useProgressStore } from '../store/progressStore';
 
-const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const STAR_DELAYS = [0, 110, 220];
 
 type ClearModalProps = {
@@ -50,6 +49,8 @@ export function ClearModal({
 }: ClearModalProps) {
   const theme = useTheme();
   const { t } = useTranslation();
+  // 컨페티 분사 원점 — 창 크기가 런타임에 바뀔 수 있으므로(대화면 회전·분할 화면) 훅으로 읽는다
+  const { width: screenW, height: screenH } = useWindowDimensions();
   const daily = useProgressStore((s) => s.daily);
   const streak = useProgressStore((s) => s.dailyStreak);
 
@@ -143,8 +144,8 @@ export function ClearModal({
         {visible && (
           <Confetti
             colors={theme.colors}
-            originX={SCREEN_W / 2}
-            originY={SCREEN_H * 0.36}
+            originX={screenW / 2}
+            originY={screenH * 0.36}
           />
         )}
         <Animated.View
