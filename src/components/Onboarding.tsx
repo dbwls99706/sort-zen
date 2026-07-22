@@ -1,9 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useTranslation } from '../i18n';
 import { OnboardingIllustration } from './OnboardingIllustration';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const SLIDE_KEYS = [
   { title: 'onboarding_1_title', desc: 'onboarding_1_desc' },
@@ -75,7 +73,8 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    width: SCREEN_WIDTH - 64,
+    // 컨테이너 padding 32 안쪽을 꽉 채운다 — 고정 픽셀 폭은 창 크기 변화를 못 따라간다
+    alignSelf: 'stretch',
   },
   title: {
     fontSize: 28,

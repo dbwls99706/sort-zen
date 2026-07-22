@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Dimensions } from 'react-native';
+import { StyleSheet, useWindowDimensions } from 'react-native';
 import {
   Canvas,
   Fill,
@@ -21,7 +21,6 @@ import { useTheme } from './ThemeProvider';
 import { lighten, darken } from '../utils/color';
 import { prand } from '../utils/prand';
 
-const { width: W, height: H } = Dimensions.get('window');
 const BOKEH_COUNT = 6;
 const DRIFT = 16;
 
@@ -29,13 +28,17 @@ function Bokeh({
   clock,
   index,
   color,
+  width,
+  height,
 }: {
   clock: SharedValue<number>;
   index: number;
   color: string;
+  width: number;
+  height: number;
 }) {
-  const baseX = prand(index, 1) * W;
-  const baseY = prand(index, 2) * H;
+  const baseX = prand(index, 1) * width;
+  const baseY = prand(index, 2) * height;
   const radius = 50 + prand(index, 3) * 80;
   const phase = prand(index, 4) * Math.PI * 2;
 
@@ -59,6 +62,9 @@ function Bokeh({
  */
 export function Background({ animated = true }: { animated?: boolean }) {
   const theme = useTheme();
+  // 모듈 스코프 Dimensions는 창 크기 변화(대화면 회전·폴더블·분할 화면)를 못 따라간다.
+  // targetSdk 36부터 600dp+ 화면에선 세로 고정이 무시되므로 훅으로 현재 크기를 읽는다.
+  const { width: W, height: H } = useWindowDimensions();
   const clock = useSharedValue(0);
 
   React.useEffect(() => {
@@ -89,6 +95,8 @@ export function Background({ animated = true }: { animated?: boolean }) {
           clock={clock}
           index={i}
           color={theme.colors[(i * 2) % theme.colors.length]}
+          width={W}
+          height={H}
         />
       ))}
     </Canvas>
