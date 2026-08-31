@@ -22,19 +22,28 @@ type SoundKey =
   | 'coin'
   | 'button_tap';
 
-/** 붓기 음계 수 (pour_0 ~ pour_11, C4~G5 — docs/02-audio.md) */
 const POUR_NOTE_COUNT = 12;
-/** 같은 색 연속 붓기 시 음정 상승 최대 단계 (docs/02-audio.md) */
 const POUR_CHAIN_SHIFT_MAX = 2;
+const ASMR_FADE_IN_MS = 110;
+const ASMR_FADE_OUT_MS = 150;
+const ASMR_BGM_DUCK = 0.48;
 
 function effectVolume(): number {
   const { masterVolume, sfxVolume } = useSettingsStore.getState();
   return masterVolume * sfxVolume;
 }
 
-function bgmVolume(): number {
-  const { masterVolume, bgmVolume: bgm } = useSettingsStore.getState();
-  return masterVolume * bgm;
+function baseBgmVolume(): number {
+  const { masterVolume, bgmVolume } = useSettingsStore.getState();
+  return masterVolume * bgmVolume;
+}
+
+function clamp01(value: number): number {
+  return Math.max(0, Math.min(1, value));
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /* eslint-disable @typescript-eslint/no-require-imports */
@@ -68,18 +77,68 @@ const BGM_ASSETS = {
 class SoundManagerClass {
   private sounds: Map<SoundKey, Audio.Sound> = new Map();
   private bgm: Audio.Sound | null = null;
+  private bgmDuck = 1;
+  private bgmFadeToken = 0;
   private loaded = false;
-  // ASMR 접촉 루프 — 누르고 문지르는 동안 끊김 없이 이어지는 단일 인스턴스(볼륨 변조)
+
   private loopSound: Audio.Sound | null = null;
-  private loopAsset: number | null = null;
-  // 비동기 start/stop 레이스 방지 토큰 — start 도중 stop(또는 다른 start)이 끼면 무효화한다.
   private loopToken = 0;
-  // ASMR 임팩트 풀(CC0) 사운드 캐시 — 자산 모듈 id로 캐싱해 재사용한다(one-shot).
+  private loopTargetVolume = 0;
+  private loopGain = 0;
   private asmrSounds: Map<number, Audio.Sound> = new Map();
-  // ASMR 접촉 루프 풀 인스턴스 캐시 — isLooping=true로 미리 로드해 제스처 경로에서 디코드를 없앤다.
   private loopSounds: Map<number, Audio.Sound> = new Map();
-  // 풀별 직전 선택 인덱스 — 바로 같은 소리가 연속되지 않게 한다(랜덤성 체감 ↑).
   private lastPick: Map<string, number> = new Map();
+
+  private currentBgmVolume(): number {
+    return clamp01(baseBgmVolume() * this.bgmDuck);
+  }
+
+  private async fadeSound(
+    sound: Audio.Sound,
+    from: number,
+    to: number,
+    durationMs: number,
+    shouldContinue?: () => boolean,
+  ): Promise<boolean> {
+    const steps = Math.max(3, Math.round(durationMs / 28));
+    for (let step = 1; step <= steps; step++) {
+      await wait(durationMs / steps);
+      if (shouldContinue && !shouldContinue()) return false;
+      const value = from + (to - from) * (step / steps);
+      try {
+        await sound.setVolumeAsync(clamp01(value));
+      } catch {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private async fadeOutDetached(sound: Audio.Sound): Promise<void> {
+    let from = this.loopTargetVolume;
+    try {
+      const status = await sound.getStatusAsync();
+      if (status.isLoaded && typeof status.volume === 'number') {
+        from = status.volume;
+      }
+    } catch {
+      // 현재 볼륨을 못 읽으면 마지막 목표 볼륨에서 감쇠한다.
+    }
+
+    const finished = await this.fadeSound(
+      sound,
+      from,
+      0,
+      ASMR_FADE_OUT_MS,
+      () => this.loopSound !== sound,
+    );
+    if (!finished || this.loopSound === sound) return;
+    try {
+      await sound.setStatusAsync({ shouldPlay: false, volume: 0 });
+    } catch {
+      // 이미 해제되었거나 플랫폼이 상태 변경을 거절한 경우 무시한다.
+    }
+  }
 
   async preload(): Promise<void> {
     if (this.loaded) return;
@@ -96,7 +155,6 @@ class SoundManagerClass {
       });
       this.sounds.set(key as SoundKey, sound);
     }
-
     this.loaded = true;
   }
 
@@ -105,22 +163,20 @@ class SoundManagerClass {
     const sound = this.sounds.get(key);
     if (!sound) return;
     try {
-      await sound.replayAsync();
+      await sound.replayAsync({ volume: effectVolume() });
     } catch {
-      /* ignore */
+      // 효과음 하나의 실패가 게임 입력을 막아서는 안 된다.
     }
   }
 
-  /** 풀에서 직전과 다른 항목을 랜덤 선택 (풀 크기 1이면 그대로). */
   private pickFromPool(pool: number[], tag: string): number {
     if (pool.length <= 1) return pool[0];
-    let idx = Math.floor(Math.random() * pool.length);
-    if (idx === this.lastPick.get(tag)) idx = (idx + 1) % pool.length;
-    this.lastPick.set(tag, idx);
-    return pool[idx];
+    let index = Math.floor(Math.random() * pool.length);
+    if (index === this.lastPick.get(tag)) index = (index + 1) % pool.length;
+    this.lastPick.set(tag, index);
+    return pool[index];
   }
 
-  /** ASMR 풀 사운드 지연 로드 + 캐시 (자산 모듈 id 기준). */
   private async getAsmrSound(asset: number): Promise<Audio.Sound | null> {
     const cached = this.asmrSounds.get(asset);
     if (cached) return cached;
@@ -130,13 +186,12 @@ class SoundManagerClass {
       });
       this.asmrSounds.set(asset, sound);
       return sound;
-    } catch (e) {
-      console.warn('Failed to load ASMR sound', e);
+    } catch (error) {
+      console.warn('Failed to load ASMR sound', error);
       return null;
     }
   }
 
-  /** ASMR 접촉 루프 인스턴스를 isLooping=true로 지연 로드 + 캐시 (정지 상태로 보관). */
   private async getLoopSound(asset: number): Promise<Audio.Sound | null> {
     const cached = this.loopSounds.get(asset);
     if (cached) return cached;
@@ -148,31 +203,30 @@ class SoundManagerClass {
       });
       this.loopSounds.set(asset, sound);
       return sound;
-    } catch (e) {
-      console.warn('Failed to load ASMR loop', e);
+    } catch (error) {
+      console.warn('Failed to load ASMR loop', error);
       return null;
     }
   }
 
-  /**
-   * ASMR 임팩트·루프 풀을 미리 디코드해 첫 터치 지연과 제스처 중 createAsync 블로킹을 없앤다
-   * (감각 방 진입 시 호출). 루프까지 미리 로드해야 누를 때 임팩트가 밀리지 않는다.
-   */
   async preloadAsmr(): Promise<void> {
     const impacts = new Set<number>();
     const loops = new Set<number>();
-    for (const mat of Object.keys(ASMR_POOLS) as AsmrMaterial[]) {
-      for (const a of ASMR_POOLS[mat].impacts) impacts.add(a);
-      for (const a of ASMR_POOLS[mat].loops) loops.add(a);
+    for (const material of Object.keys(ASMR_POOLS) as AsmrMaterial[]) {
+      for (const asset of ASMR_POOLS[material].impacts) impacts.add(asset);
+      for (const asset of ASMR_POOLS[material].loops) loops.add(asset);
     }
     await Promise.all([
-      ...[...impacts].map((a) => this.getAsmrSound(a).then(() => undefined)),
-      ...[...loops].map((a) => this.getLoopSound(a).then(() => undefined)),
+      ...[...impacts].map((asset) =>
+        this.getAsmrSound(asset).then(() => undefined),
+      ),
+      ...[...loops].map((asset) =>
+        this.getLoopSound(asset).then(() => undefined),
+      ),
     ]);
   }
 
-  /** 닿는 순간 터지는 임팩트 — 재질 풀에서 매번 랜덤(첨벙/찰싹/꾸덕 등). */
-  async playImpact(material: AsmrMaterial): Promise<void> {
+  async playImpact(material: AsmrMaterial, gain = 1): Promise<void> {
     if (!useSettingsStore.getState().soundEnabled) return;
     const asset = this.pickFromPool(
       ASMR_POOLS[material].impacts,
@@ -181,99 +235,149 @@ class SoundManagerClass {
     const sound = await this.getAsmrSound(asset);
     if (!sound) return;
     try {
-      // 볼륨은 로드 시점/설정 변경 시에만 반영한다. 매 탭마다 setVolume 왕복을 넣으면
-      // 그만큼 임팩트 재생이 지연돼 타이밍이 불규칙해진다 → replay 한 번만 호출.
-      await sound.replayAsync({ volume: effectVolume() });
+      await sound.replayAsync({
+        volume: clamp01(effectVolume() * gain),
+      });
     } catch {
-      /* ignore */
+      // 원샷 중첩 실패는 다음 제스처에서 자연스럽게 복구된다.
     }
   }
 
-  /**
-   * ASMR 접촉 루프 시작 — 누르고 문지르는 동안 단일 사운드를 반복 재생해 끊김 없이 이어준다.
-   * 재질 루프 풀에서 랜덤 선택(같은 루프가 재생 중이면 볼륨만 갱신).
-   */
+  /** 접촉 시작 시 랜덤 위치에서 루프를 시작하고 짧게 페이드인한다. */
   async startLoop(material: AsmrMaterial, volume = 1): Promise<void> {
     if (!useSettingsStore.getState().soundEnabled) return;
     const token = ++this.loopToken;
-    const vol = Math.max(0, Math.min(1, effectVolume() * volume));
+    this.loopGain = clamp01(volume);
+    const targetVolume = clamp01(effectVolume() * this.loopGain);
     const asset = this.pickFromPool(
       ASMR_POOLS[material].loops,
       `${material}_loop`,
     );
-    // 미리 로드된 인스턴스를 재사용한다(제스처 경로에서 createAsync 디코드 금지).
     const sound = await this.getLoopSound(asset);
-    // 로드를 기다리는 사이 stop 또는 다른 start가 끼면 이 시작은 무효 — 고아 루프 방지.
     if (token !== this.loopToken || !sound) return;
-    // 다른 자산이 재생 중이면 멈춘다(인스턴스는 캐시에 유지).
-    if (this.loopSound && this.loopAsset !== asset) {
-      this.loopSound.setStatusAsync({ shouldPlay: false }).catch(() => {
-        /* ignore */
-      });
-    }
+
+    const previous = this.loopSound;
     this.loopSound = sound;
-    this.loopAsset = asset;
+    this.loopTargetVolume = targetVolume;
+
+    let positionMillis = 0;
+    let currentVolume = 0;
     try {
+      const status = await sound.getStatusAsync();
+      if (status.isLoaded) {
+        currentVolume =
+          typeof status.volume === 'number' ? status.volume : 0;
+        if (status.durationMillis && status.durationMillis > 300) {
+          positionMillis = Math.floor(
+            Math.random() * (status.durationMillis - 200),
+          );
+        }
+      }
       await sound.setStatusAsync({
         shouldPlay: true,
-        volume: vol,
-        positionMillis: 0,
+        isLooping: true,
+        positionMillis,
+        volume: Math.min(currentVolume, targetVolume),
       });
     } catch {
-      /* ignore */
+      return;
     }
-  }
 
-  /** 접촉 루프 볼륨 변조 (문지르는 속도/세기에 비례) */
-  async setLoopVolume(volume: number): Promise<void> {
-    if (!this.loopSound) return;
-    try {
-      await this.loopSound.setVolumeAsync(
-        Math.max(0, Math.min(1, effectVolume() * volume)),
-      );
-    } catch {
-      /* ignore */
-    }
-  }
-
-  /** 접촉 루프 종료 (손을 뗄 때) — 인스턴스는 캐시에 유지하고 일시정지만 한다(재사용). */
-  async stopLoop(): Promise<void> {
-    this.loopToken++; // 진행 중인 start 무효화
-    const s = this.loopSound;
-    this.loopSound = null;
-    this.loopAsset = null;
-    if (s) {
-      try {
-        await s.setStatusAsync({ shouldPlay: false });
-      } catch {
-        /* ignore */
-      }
-    }
-  }
-
-  /** 설정에서 효과음/전체 볼륨을 바꿨을 때 미리 로드된 효과음에 일괄 반영 */
-  async refreshSfxVolume(): Promise<void> {
-    const vol = effectVolume();
-    await Promise.all(
-      [...this.sounds.values()].map((s) =>
-        s.setVolumeAsync(vol).catch(() => {
-          /* 볼륨 적용 실패 무시 */
-        }),
-      ),
+    if (previous && previous !== sound) void this.fadeOutDetached(previous);
+    await this.fadeSound(
+      sound,
+      Math.min(currentVolume, targetVolume),
+      targetVolume,
+      ASMR_FADE_IN_MS,
+      () => token === this.loopToken && this.loopSound === sound,
     );
   }
 
-  /**
-   * 붓기 효과음. 색상 ID를 12음 실로폰 음계로 매핑하고,
-   * 같은 색을 연속으로 부으면(chainCount) 음이 +1~+2 단계 올라간다.
-   * 최고음에서는 클램프해 음이 아래로 꺾이지 않게 한다 (상승감 유지).
-   * 자산 자체에 마림바 배음 + 물 텍스처가 합성되어 있다 (T102).
-   */
-  async playPour(colorId: number, chainCount = 0): Promise<void> {
-    const shift = Math.min(chainCount, POUR_CHAIN_SHIFT_MAX);
+  async setLoopVolume(volume: number): Promise<void> {
+    const sound = this.loopSound;
+    if (!sound) return;
+    this.loopGain = clamp01(volume);
+    const target = clamp01(effectVolume() * this.loopGain);
+    this.loopTargetVolume = target;
+    try {
+      await sound.setVolumeAsync(target);
+    } catch {
+      // 제스처 중 볼륨 한 프레임 누락은 무시한다.
+    }
+  }
+
+  /** 손을 떼면 즉시 자르지 않고 짧은 꼬리를 남긴 뒤 일시정지한다. */
+  async stopLoop(): Promise<void> {
+    this.loopToken += 1;
+    const sound = this.loopSound;
+    this.loopSound = null;
+    this.loopTargetVolume = 0;
+    this.loopGain = 0;
+    if (sound) await this.fadeOutDetached(sound);
+  }
+
+  /** ASMR 접촉 중 BGM을 낮춰 미세한 재질음을 앞으로 가져온다. */
+  async setBgmDucked(ducked: boolean): Promise<void> {
+    this.bgmDuck = ducked ? ASMR_BGM_DUCK : 1;
+    const sound = this.bgm;
+    if (!sound) return;
+    const token = ++this.bgmFadeToken;
+    let from = this.currentBgmVolume();
+    try {
+      const status = await sound.getStatusAsync();
+      if (status.isLoaded && typeof status.volume === 'number') {
+        from = status.volume;
+      }
+    } catch {
+      // 목표값으로 바로 접근한다.
+    }
+    await this.fadeSound(
+      sound,
+      from,
+      this.currentBgmVolume(),
+      ducked ? 120 : 220,
+      () => token === this.bgmFadeToken && this.bgm === sound,
+    );
+  }
+
+  async refreshSfxVolume(): Promise<void> {
+    const volume = effectVolume();
+    await Promise.all([
+      ...[...this.sounds.values()].map((sound) =>
+        sound.setVolumeAsync(volume).catch(() => undefined),
+      ),
+      ...[...this.asmrSounds.values()].map((sound) =>
+        sound.setVolumeAsync(volume).catch(() => undefined),
+      ),
+    ]);
+    if (this.loopSound) {
+      this.loopTargetVolume = clamp01(volume * this.loopGain);
+      await this.loopSound
+        .setVolumeAsync(this.loopTargetVolume)
+        .catch(() => undefined);
+    }
+  }
+
+  async playPour(
+    colorId: number,
+    chainCount = 0,
+    layerCount = 1,
+  ): Promise<void> {
+    const chainShift = Math.min(chainCount, POUR_CHAIN_SHIFT_MAX);
+    const weightShift = layerCount >= 3 ? 1 : 0;
     const note = Math.min(
-      (colorId % POUR_NOTE_COUNT) + shift,
+      (colorId % POUR_NOTE_COUNT) + chainShift + weightShift,
       POUR_NOTE_COUNT - 1,
+    );
+    await this.play(`pour_${note}` as SoundKey);
+  }
+
+  /** 결과 별이 하나씩 등장할 때 서로 다른 고음으로 상승감을 만든다. */
+  async playCelebrationNote(index: number, stars: number): Promise<void> {
+    const base = stars === 3 ? 8 : 7;
+    const note = Math.min(
+      POUR_NOTE_COUNT - 1,
+      base + Math.max(0, index),
     );
     await this.play(`pour_${note}` as SoundKey);
   }
@@ -282,76 +386,77 @@ class SoundManagerClass {
     if (!useSettingsStore.getState().bgmEnabled) return;
 
     if (this.bgm) {
-      const oldBgm = this.bgm;
+      const previous = this.bgm;
       this.bgm = null;
       try {
-        await oldBgm.unloadAsync();
+        await previous.unloadAsync();
       } catch {
-        // ignore
+        // 이미 해제된 경우 무시한다.
       }
     }
 
     try {
-      const asset = BGM_ASSETS[track];
-      const { sound } = await Audio.Sound.createAsync(asset, {
+      const { sound } = await Audio.Sound.createAsync(BGM_ASSETS[track], {
         isLooping: true,
-        volume: bgmVolume(),
+        volume: this.currentBgmVolume(),
       });
       this.bgm = sound;
       await sound.playAsync();
-    } catch (e) {
-      console.warn('Failed to play BGM', e);
+    } catch (error) {
+      console.warn('Failed to play BGM', error);
     }
   }
 
-  /** 설정에서 BGM 볼륨을 바꿨을 때 재생 중인 트랙에 즉시 반영 */
   async refreshBgmVolume(): Promise<void> {
     if (!this.bgm) return;
     try {
-      await this.bgm.setVolumeAsync(bgmVolume());
+      await this.bgm.setVolumeAsync(this.currentBgmVolume());
     } catch {
-      /* 볼륨 적용 실패 무시 */
+      // 설정 화면을 막지 않는다.
     }
   }
 
   async stopBGM(): Promise<void> {
     const sound = this.bgm;
-    if (sound) {
-      this.bgm = null;
-      try {
-        await sound.stopAsync();
-      } catch {
-        // ignore
-      }
+    this.bgm = null;
+    this.bgmDuck = 1;
+    this.bgmFadeToken += 1;
+    if (!sound) return;
+    try {
+      await sound.stopAsync();
+    } catch {
+      // ignore
+    }
+    try {
+      await sound.unloadAsync();
+    } catch {
+      // ignore
+    }
+  }
+
+  async unloadAll(): Promise<void> {
+    for (const sound of this.sounds.values()) {
       try {
         await sound.unloadAsync();
       } catch {
         // ignore
       }
     }
-  }
-
-  async unloadAll(): Promise<void> {
-    for (const s of this.sounds.values()) {
-      try {
-        await s.unloadAsync();
-      } catch {
-        // ignore
-      }
-    }
     this.sounds.clear();
-    for (const s of this.asmrSounds.values()) {
+
+    for (const sound of this.asmrSounds.values()) {
       try {
-        await s.unloadAsync();
+        await sound.unloadAsync();
       } catch {
         // ignore
       }
     }
     this.asmrSounds.clear();
+
     await this.stopLoop();
-    for (const s of this.loopSounds.values()) {
+    for (const sound of this.loopSounds.values()) {
       try {
-        await s.unloadAsync();
+        await sound.unloadAsync();
       } catch {
         // ignore
       }

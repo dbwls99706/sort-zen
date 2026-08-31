@@ -1,8 +1,15 @@
 import React from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 import { useTheme } from './ThemeProvider';
 import { useTranslation } from '../i18n';
-import { UndoIcon, ResetIcon, PauseIcon, HintIcon } from './icons';
+import { HintIcon, PauseIcon, ResetIcon, UndoIcon } from './icons';
 
 type HUDProps = {
   level: number;
@@ -27,10 +34,45 @@ export function HUD({
 }: HUDProps) {
   const theme = useTheme();
   const { t } = useTranslation();
+  const coinScale = useSharedValue(1);
+  const moveScale = useSharedValue(1);
+  const previousCoins = React.useRef(coins);
+  const previousMoves = React.useRef(moveCount);
+
+  React.useEffect(() => {
+    if (coins !== previousCoins.current) {
+      coinScale.value = withSequence(
+        withTiming(1.2, { duration: 100 }),
+        withSpring(1, { damping: 8, stiffness: 230 }),
+      );
+      previousCoins.current = coins;
+    }
+  }, [coins, coinScale]);
+
+  React.useEffect(() => {
+    if (moveCount !== previousMoves.current) {
+      moveScale.value = withSequence(
+        withTiming(1.14, { duration: 80 }),
+        withSpring(1, { damping: 9, stiffness: 230 }),
+      );
+      previousMoves.current = moveCount;
+    }
+  }, [moveCount, moveScale]);
+
+  const coinStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: coinScale.value }],
+  }));
+  const moveStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: moveScale.value }],
+  }));
+
+  const buttonStyle = ({ pressed }: { pressed: boolean }) => [
+    styles.button,
+    pressed && styles.buttonPressed,
+  ];
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.surface }]}>
-      {/* 좌측: 레벨/이동 + 코인. 우측 버튼군과 분리해 겹침을 원천 차단한다. */}
+    <View style={[styles.container, { backgroundColor: theme.surface }]}> 
       <View style={styles.left}>
         <View style={styles.levelBlock}>
           <Text
@@ -39,29 +81,35 @@ export function HUD({
           >
             {mode === 'classic' ? `Lv.${level}` : t('zen')}
           </Text>
-          <Text style={[styles.moveText, { color: theme.textSecondary }]}>
+          <Animated.Text
+            style={[
+              styles.moveText,
+              moveStyle,
+              { color: theme.textSecondary },
+            ]}
+          >
             {moveCount} {t('moves')}
-          </Text>
+          </Animated.Text>
         </View>
-        <Text
-          style={[styles.coinText, { color: theme.accent }]}
+        <Animated.Text
+          style={[styles.coinText, coinStyle, { color: theme.accent }]}
           numberOfLines={1}
         >
           🪙 {coins}
-        </Text>
+        </Animated.Text>
       </View>
 
       <View style={styles.right}>
-        <Pressable onPress={onHint} style={styles.button} hitSlop={6}>
+        <Pressable onPress={onHint} style={buttonStyle} hitSlop={6}>
           <HintIcon color={theme.text} />
         </Pressable>
-        <Pressable onPress={onUndo} style={styles.button} hitSlop={6}>
+        <Pressable onPress={onUndo} style={buttonStyle} hitSlop={6}>
           <UndoIcon color={theme.text} />
         </Pressable>
-        <Pressable onPress={onReset} style={styles.button} hitSlop={6}>
+        <Pressable onPress={onReset} style={buttonStyle} hitSlop={6}>
           <ResetIcon color={theme.text} />
         </Pressable>
-        <Pressable onPress={onPause} style={styles.button} hitSlop={6}>
+        <Pressable onPress={onPause} style={buttonStyle} hitSlop={6}>
           <PauseIcon color={theme.text} />
         </Pressable>
       </View>
@@ -102,6 +150,7 @@ const styles = StyleSheet.create({
   },
   moveText: {
     fontSize: 12,
+    alignSelf: 'flex-start',
   },
   coinText: {
     fontSize: 18,
@@ -114,5 +163,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(0,0,0,0.05)',
+  },
+  buttonPressed: {
+    transform: [{ scale: 0.9 }],
+    opacity: 0.62,
   },
 });
