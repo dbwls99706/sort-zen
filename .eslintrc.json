@@ -28,5 +28,14 @@
     "react-hooks/purity": "off",
     "react-hooks/refs": "off"
   },
+  "overrides": [
+    {
+      "files": ["app/game/[mode].tsx"],
+      "rules": {
+        // cleared라는 외부 Zustand 상태를 감각 연출 단계로 전환하는 의도적인 오케스트레이션이다.
+        "react-hooks/set-state-in-effect": "off"
+      }
+    }
+  ],
   "ignorePatterns": ["node_modules/", "dist/", ".expo/", "ios/", "android/"]
 }
