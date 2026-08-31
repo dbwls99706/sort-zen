@@ -102,8 +102,8 @@ export default function GameScreen() {
 
   const [animatingPour, setAnimatingPour] = useState<AnimatingPour | null>(null);
   const [hint, setHint] = useState<{ from: number; to: number } | null>(null);
-  const [boardCelebrating, setBoardCelebrating] = useState(false);
   const [showClearModal, setShowClearModal] = useState(false);
+  const boardCelebrating = cleared && !showClearModal;
 
   const stuck = useMemo(
     () =>
@@ -153,13 +153,16 @@ export default function GameScreen() {
     prevCompleted.current = new Set();
     pourChain.current = null;
     rewardedClear.current = false;
-    setAnimatingPour(null);
-    setHint(null);
-    setBoardCelebrating(false);
-    setShowClearModal(false);
+    const resetVisualTimer = setTimeout(() => {
+      if (!mounted.current) return;
+      setAnimatingPour(null);
+      setHint(null);
+      setShowClearModal(false);
+    }, 0);
 
     SoundManager.playBGM(mode === 'zen' ? 'zen' : 'classic');
     return () => {
+      clearTimeout(resetVisualTimer);
       SoundManager.stopBGM();
     };
   }, [mode, startNewGame]);
@@ -174,8 +177,6 @@ export default function GameScreen() {
     if (!cleared || rewardedClear.current) return;
     rewardedClear.current = true;
     clearPourRuntime();
-    setBoardCelebrating(true);
-    setShowClearModal(false);
 
     SoundManager.play('level_clear');
     Haptic.success();
@@ -191,7 +192,6 @@ export default function GameScreen() {
     clearCelebrationRuntime();
     clearModalTimer.current = setTimeout(() => {
       if (!mounted.current) return;
-      setBoardCelebrating(false);
       setShowClearModal(true);
       clearModalTimer.current = null;
     }, CLEAR_BOARD_CELEBRATION_MS);
@@ -323,269 +323,4 @@ export default function GameScreen() {
       (translationY - TUBE_SELECTED_LIFT) * scale;
     const rimY = (TUBE_CONTAINER_TOP_GAP - TUBE_HEIGHT) / 2;
     const lipX = directionSign * TUBE_WIDTH * 0.35;
-    const radians = (directionSign * 70 * Math.PI) / 180;
-    const cos = Math.cos(radians);
-    const sin = Math.sin(radians);
-    const fromX = pivotX + (lipX * cos - rimY * sin) * scale;
-    const fromY = pivotY + (lipX * sin + rimY * cos) * scale;
-    const toX = to.x + to.width / 2;
-    const toY = to.y + 10 * scale;
-    const timing = getPourTiming(result.move.count);
-
-    const nextPour: AnimatingPour = {
-      fromId: selectedTube,
-      toId: id,
-      color,
-      colorId,
-      count: result.move.count,
-      chainCount,
-      timing,
-      fromX,
-      fromY,
-      toX,
-      toY,
-      translationX,
-      translationY,
-      direction,
-    };
-
-    clearPourRuntime();
-    pourProgress.value = 0;
-    activePour.current = nextPour;
-    setAnimatingPour(nextPour);
-    pourSafetyTimer.current = setTimeout(
-      handlePourLand,
-      timing.totalMs + 400,
-    );
-  };
-
-  const handleHint = () => {
-    if (cleared || boardCelebrating || animatingPour || hint) return;
-    SoundManager.play('button_tap');
-    Haptic.light();
-
-    const solution = findSolution(tubes);
-    if (!solution || solution.length === 0) return;
-    const next = { from: solution[0].from, to: solution[0].to };
-
-    if (spendCoins(HINT_COST)) {
-      setHint(next);
-      return;
-    }
-    AdManager.showRewarded(() => {
-      if (mounted.current) setHint(next);
-    });
-  };
-
-  const handleAddTube = () => {
-    SoundManager.play('button_tap');
-    Haptic.light();
-    AdManager.showRewarded(() => {
-      if (mounted.current) addExtraTube();
-    });
-  };
-
-  const handleUndo = () => {
-    if (cleared || boardCelebrating || animatingPour) return;
-    SoundManager.play('button_tap');
-    Haptic.light();
-    pourChain.current = null;
-    setHint(null);
-    undo();
-  };
-
-  const handleReset = () => {
-    if (cleared || boardCelebrating || animatingPour) return;
-    SoundManager.play('button_tap');
-    Haptic.light();
-    prevCompleted.current = new Set();
-    pourChain.current = null;
-    rewardedClear.current = false;
-    setHint(null);
-    setBoardCelebrating(false);
-    setShowClearModal(false);
-    reset();
-  };
-
-  const handlePause = () => {
-    if (animatingPour) return;
-    SoundManager.play('button_tap');
-    Haptic.light();
-    router.back();
-  };
-
-  const handleNextLevel = useCallback(() => {
-    SoundManager.play('button_tap');
-    Haptic.light();
-    clearPourRuntime();
-    clearCelebrationRuntime();
-    setBoardCelebrating(false);
-    setShowClearModal(false);
-    rewardedClear.current = false;
-
-    if (mode === 'classic') {
-      startNewGame('classic', userLevel);
-      AdManager.maybeShowInterstitial('classic');
-    } else {
-      startNewGame('zen');
-    }
-
-    prevCompleted.current = new Set();
-    pourChain.current = null;
-    activePour.current = null;
-    setHint(null);
-    setAnimatingPour(null);
-  }, [
-    mode,
-    userLevel,
-    startNewGame,
-    clearPourRuntime,
-    clearCelebrationRuntime,
-  ]);
-
-  const handleMenu = useCallback(() => {
-    SoundManager.play('button_tap');
-    Haptic.light();
-    clearPourRuntime();
-    clearCelebrationRuntime();
-    router.back();
-  }, [router, clearPourRuntime, clearCelebrationRuntime]);
-
-  return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: theme.background }]}
-    >
-      <Background animated={false} />
-      <HUD
-        level={level}
-        coins={coins}
-        mode={mode}
-        moveCount={moves.length}
-        onHint={handleHint}
-        onUndo={handleUndo}
-        onReset={handleReset}
-        onPause={handlePause}
-      />
-
-      <View style={styles.boardContainer}>
-        <View style={styles.tubeGrid}>
-          {tubes.map((tube, index) => {
-            const isFrom = animatingPour?.fromId === tube.id;
-            const isTo = animatingPour?.toId === tube.id;
-            let pourPreview: TubePourPreview | undefined;
-            if (animatingPour && (isFrom || isTo)) {
-              pourPreview = {
-                role: isFrom ? 'source' : 'target',
-                color: animatingPour.color,
-                count: animatingPour.count,
-                progress: pourProgress,
-                streamStartRatio: animatingPour.timing.streamStartRatio,
-                streamEndRatio: animatingPour.timing.streamEndRatio,
-              };
-            }
-
-            return (
-              <View
-                key={tube.id}
-                onLayout={handleTubeLayout(tube.id)}
-                style={{
-                  width: TUBE_WIDTH * scale,
-                  height: (TUBE_HEIGHT + TUBE_CONTAINER_TOP_GAP) * scale,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <View style={{ transform: [{ scale }] }}>
-                  <TubeComponent
-                    tube={tube}
-                    selected={selectedTube === tube.id}
-                    completed={isTubeComplete(tube)}
-                    hinted={hint?.from === tube.id || hint?.to === tube.id}
-                    celebrating={boardCelebrating}
-                    celebrationDelayMs={index * 65}
-                    pourPreview={pourPreview}
-                    onPress={() => handleTubePress(tube.id)}
-                    tiltAngle={
-                      isFrom
-                        ? animatingPour.direction === 'right'
-                          ? 70
-                          : -70
-                        : 0
-                    }
-                    translationX={
-                      isFrom ? animatingPour.translationX : 0
-                    }
-                    translationY={
-                      isFrom ? animatingPour.translationY : 0
-                    }
-                  />
-                </View>
-              </View>
-            );
-          })}
-
-          {animatingPour && (
-            <PourAnimation
-              fromX={animatingPour.fromX}
-              fromY={animatingPour.fromY}
-              toX={animatingPour.toX}
-              toY={animatingPour.toY}
-              color={animatingPour.color}
-              layerCount={animatingPour.count}
-              progress={pourProgress}
-              scale={scale}
-              onStreamStart={handlePourStreamStart}
-              onImpact={handlePourImpact}
-              onComplete={handlePourLand}
-            />
-          )}
-        </View>
-
-        <BoardCelebration
-          visible={boardCelebrating}
-          colors={theme.colors}
-          seed={level + moves.length * 17}
-        />
-      </View>
-
-      <StuckModal
-        visible={stuck}
-        canUndo={moves.length > 0}
-        onUndo={handleUndo}
-        onNewBoard={handleReset}
-        onAddTube={
-          mode === 'classic' && !extraTubeUsed ? handleAddTube : undefined
-        }
-      />
-
-      <ClearModal
-        visible={showClearModal}
-        level={level}
-        moveCount={moves.length}
-        mode={mode}
-        stars={stars}
-        coinReward={coinReward}
-        onNextLevel={handleNextLevel}
-        onMenu={handleMenu}
-      />
-    </SafeAreaView>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  boardContainer: {
-    flex: 1,
-    position: 'relative',
-    justifyContent: 'center',
-  },
-  tubeGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 12,
-  },
-});
+    const radians = (directionSign * 70 * Math.PI) 

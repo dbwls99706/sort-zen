@@ -49,9 +49,7 @@ function ConfettiPiece({
     const t = progress.value;
     const x = originX + Math.cos(piece.angle) * piece.speed * t;
     const y =
-      originY +
-      Math.sin(piece.angle) * piece.speed * t +
-      piece.gravity * t * t;
+      originY + Math.sin(piece.angle) * piece.speed * t + piece.gravity * t * t;
     const opacity =
       t <= 0
         ? 0
@@ -109,15 +107,13 @@ export function Confetti({
   }, [progress, delayMs]);
 
   const pieceCount = 26 + intensity * 16;
-  const palette = colors.length > 0 ? colors : ['#FFD44A', '#FFFFFF'];
   const pieces = useMemo<Piece[]>(
-    () =>
-      Array.from({ length: pieceCount }, (_, index) => {
+    () => {
+      const palette = colors.length > 0 ? colors : ['#FFD44A', '#FFFFFF'];
+      return Array.from({ length: pieceCount }, (_, index) => {
         const i = index + seed * 101;
         return {
-          angle:
-            -Math.PI / 2 +
-            (prand(i, 1) - 0.5) * Math.PI * 1.76,
+          angle: -Math.PI / 2 + (prand(i, 1) - 0.5) * Math.PI * 1.76,
           speed: 150 + prand(i, 2) * (250 + intensity * 70),
           gravity: 300 + prand(i, 3) * 250,
           rotation: (prand(i, 4) * 6 - 3) * Math.PI,
@@ -127,8 +123,9 @@ export function Confetti({
           flutterPhase: prand(i, 7) * Math.PI * 2,
           round: index % 4 === 0,
         };
-      }),
-    [pieceCount, seed, intensity, palette],
+      });
+    },
+    [pieceCount, seed, intensity, colors],
   );
 
   return (
