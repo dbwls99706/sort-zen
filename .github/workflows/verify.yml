@@ -1,0 +1,40 @@
+name: verify
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - 'feat/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck, lint, and test
+        run: pnpm verify
+
+      - name: Web export smoke test
+        run: pnpm exec expo export --platform web --output-dir dist-web
