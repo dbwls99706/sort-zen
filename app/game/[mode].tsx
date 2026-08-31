@@ -1,12 +1,13 @@
-import React, { useEffect, useCallback, useState, useRef, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View,
-  StyleSheet,
   LayoutChangeEvent,
+  StyleSheet,
   useWindowDimensions,
+  View,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSharedValue } from 'react-native-reanimated';
 import { useGameStore } from '../../src/store/gameStore';
 import { useUserStore } from '../../src/store/userStore';
 import { useProgressStore } from '../../src/store/progressStore';
@@ -15,28 +16,31 @@ import {
   TubeComponent,
   TUBE_CONTAINER_TOP_GAP,
   TUBE_SELECTED_LIFT,
+  type TubePourPreview,
 } from '../../src/components/Tube';
-import { TUBE_WIDTH, TUBE_HEIGHT } from '../../src/components/tube/dimensions';
+import { TUBE_HEIGHT, TUBE_WIDTH } from '../../src/components/tube/dimensions';
 import { computeTubeScale } from '../../src/utils/layout';
 import { Background } from '../../src/components/Background';
 import { HUD } from '../../src/components/HUD';
 import { ClearModal } from '../../src/components/ClearModal';
+import { BoardCelebration } from '../../src/components/BoardCelebration';
 import { SoundManager } from '../../src/audio/SoundManager';
 import { Haptic } from '../../src/utils/haptics';
 import { AdManager } from '../../src/ads/AdManager';
 import { GameServicesManager } from '../../src/services/GameServicesManager';
-import { pour, isTubeComplete } from '../../src/core/rules';
-import { hasLegalMove, findSolution } from '../../src/core/solver';
+import { isTubeComplete, pour } from '../../src/core/rules';
+import { findSolution, hasLegalMove } from '../../src/core/solver';
 import { calcStars, clearCoinReward } from '../../src/core/scoring';
 import { HINT_COST } from '../../src/core/constants';
 import { StuckModal } from '../../src/components/StuckModal';
+import { PourAnimation } from '../../src/components/PourAnimation';
 import {
-  PourAnimation,
-  POUR_DURATION_MS,
-} from '../../src/components/PourAnimation';
+  CLEAR_BOARD_CELEBRATION_MS,
+  getPourTiming,
+  type PourTiming,
+} from '../../src/components/pourTiming';
 
 type GameMode = 'classic' | 'zen';
-
 type TubeLayout = { x: number; y: number; width: number; height: number };
 
 type AnimatingPour = {
@@ -44,6 +48,9 @@ type AnimatingPour = {
   toId: number;
   color: string;
   colorId: number;
+  count: number;
+  chainCount: number;
+  timing: PourTiming;
   fromX: number;
   fromY: number;
   toX: number;
@@ -85,18 +92,19 @@ export default function GameScreen() {
   const tubeLayouts = useRef<Record<number, TubeLayout>>({});
   const prevCompleted = useRef<Set<number>>(new Set());
   const mounted = useRef(true);
-  // 붓기 착지 콜백이 최신 대상 튜브를 읽도록 활성 붓기를 ref로도 보관한다.
-  // (animatingPour를 클로저로 캡처하면 설정 시점의 null을 읽어 커밋이 멈춘다)
   const activePour = useRef<AnimatingPour | null>(null);
   const pourChain = useRef<{ colorId: number; count: number } | null>(null);
   const stopFlowHaptic = useRef<(() => void) | null>(null);
-  // 붓기 착지 콜백이 어떤 이유로든 누락돼도 보드가 영구 잠기지 않도록 하는 안전망
   const pourSafetyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [animatingPour, setAnimatingPour] = useState<AnimatingPour | null>(null);
-  // 힌트는 보드를 바꾸는 모든 이벤트(붓기/되돌리기/새 보드)에서 해제한다
-  const [hint, setHint] = useState<{ from: number; to: number } | null>(null);
+  const clearModalTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rewardedClear = useRef(false);
+  const pourProgress = useSharedValue(0);
 
-  // 막힘 감지 (T142): 합법 수 0 && 미완성이면 탈출 경로 안내
+  const [animatingPour, setAnimatingPour] = useState<AnimatingPour | null>(null);
+  const [hint, setHint] = useState<{ from: number; to: number } | null>(null);
+  const [boardCelebrating, setBoardCelebrating] = useState(false);
+  const [showClearModal, setShowClearModal] = useState(false);
+
   const stuck = useMemo(
     () =>
       tubes.length > 0 &&
@@ -106,72 +114,107 @@ export default function GameScreen() {
     [tubes, cleared, animatingPour],
   );
 
-  // 튜브 수/화면에 맞춘 반응형 스케일 (오버플로 방지)
   const scale = useMemo(
     () => computeTubeScale(tubes.length, winW - 32, winH * 0.6),
     [tubes.length, winW, winH],
   );
 
+  const clearPourRuntime = useCallback(() => {
+    stopFlowHaptic.current?.();
+    stopFlowHaptic.current = null;
+    if (pourSafetyTimer.current) {
+      clearTimeout(pourSafetyTimer.current);
+      pourSafetyTimer.current = null;
+    }
+  }, []);
+
+  const clearCelebrationRuntime = useCallback(() => {
+    if (clearModalTimer.current) {
+      clearTimeout(clearModalTimer.current);
+      clearModalTimer.current = null;
+    }
+  }, []);
+
   useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
-      stopFlowHaptic.current?.();
-      if (pourSafetyTimer.current) clearTimeout(pourSafetyTimer.current);
+      clearPourRuntime();
+      clearCelebrationRuntime();
     };
-  }, []);
+  }, [clearPourRuntime, clearCelebrationRuntime]);
 
   useEffect(() => {
-    const lvl = mode === 'classic' ? userLevel : undefined;
-    startNewGame(mode, lvl);
+    // 사용자 레벨은 화면 진입 시에만 읽는다. 클리어 보상으로 userLevel이 증가해도
+    // 이 효과가 재실행되어 결과 연출 전에 새 보드가 생성되지 않는다.
+    const levelAtEntry =
+      mode === 'classic' ? useUserStore.getState().level : undefined;
+    startNewGame(mode, levelAtEntry);
     prevCompleted.current = new Set();
     pourChain.current = null;
+    rewardedClear.current = false;
+    setAnimatingPour(null);
+    setHint(null);
+    setBoardCelebrating(false);
+    setShowClearModal(false);
 
-    if (mode === 'zen') {
-      SoundManager.playBGM('zen');
-    } else {
-      SoundManager.playBGM('classic');
-    }
-
+    SoundManager.playBGM(mode === 'zen' ? 'zen' : 'classic');
     return () => {
       SoundManager.stopBGM();
     };
-  }, [mode, userLevel, startNewGame]);
+  }, [mode, startNewGame]);
 
-  // 무브 효율 별점 (T145) — 클리어 시점의 이동 수 기준
   const stars = useMemo(
     () => calcStars(moves.length, optimalMoves),
     [moves.length, optimalMoves],
   );
   const coinReward = clearCoinReward(stars);
 
-  // 클리어 감지 -> 보상 + 사운드
   useEffect(() => {
-    if (cleared) {
-      SoundManager.play('level_clear');
-      Haptic.success();
-      incrementCleared();
-      addCoins(clearCoinReward(calcStars(moves.length, optimalMoves)));
-      recordClear({ mode, moveCount: moves.length });
-      SoundManager.play('coin');
+    if (!cleared || rewardedClear.current) return;
+    rewardedClear.current = true;
+    clearPourRuntime();
+    setBoardCelebrating(true);
+    setShowClearModal(false);
 
-      if (mode === 'classic') {
-        incrementLevel();
-        // 최고 도달 단계를 리더보드에 기록 (로그인 상태에서만 실제 제출).
-        GameServicesManager.submitBestScore();
-        // 전면광고는 클리어 연출을 가리지 않도록 '다음 레벨' 진입 시점으로 미룬다.
-      }
+    SoundManager.play('level_clear');
+    Haptic.success();
+    incrementCleared();
+    addCoins(coinReward);
+    recordClear({ mode, moveCount: moves.length });
+
+    if (mode === 'classic') {
+      incrementLevel();
+      GameServicesManager.submitBestScore();
     }
-  }, [cleared, mode, incrementCleared, addCoins, incrementLevel, recordClear, moves.length, optimalMoves]);
 
-  // 튜브 단색 완성 감지 → 미세 보상 사운드 + 햅틱 (클리어 순간은 level_clear에 양보)
+    clearCelebrationRuntime();
+    clearModalTimer.current = setTimeout(() => {
+      if (!mounted.current) return;
+      setBoardCelebrating(false);
+      setShowClearModal(true);
+      clearModalTimer.current = null;
+    }, CLEAR_BOARD_CELEBRATION_MS);
+  }, [
+    cleared,
+    mode,
+    moves.length,
+    coinReward,
+    incrementCleared,
+    addCoins,
+    recordClear,
+    incrementLevel,
+    clearPourRuntime,
+    clearCelebrationRuntime,
+  ]);
+
   useEffect(() => {
     const nowComplete = new Set<number>();
     let hasNew = false;
-    for (const t of tubes) {
-      if (isTubeComplete(t)) {
-        nowComplete.add(t.id);
-        if (!prevCompleted.current.has(t.id)) hasNew = true;
+    for (const tube of tubes) {
+      if (isTubeComplete(tube)) {
+        nowComplete.add(tube.id);
+        if (!prevCompleted.current.has(tube.id)) hasNew = true;
       }
     }
     if (hasNew && !cleared) {
@@ -181,42 +224,49 @@ export default function GameScreen() {
     prevCompleted.current = nowComplete;
   }, [tubes, cleared]);
 
-  const handleTubeLayout = (id: number) => (e: LayoutChangeEvent) => {
-    tubeLayouts.current[id] = e.nativeEvent.layout;
+  const handleTubeLayout = (id: number) => (event: LayoutChangeEvent) => {
+    tubeLayouts.current[id] = event.nativeEvent.layout;
   };
 
-  // 붓기 피드백: 같은 색 연속 붓기는 음이 살짝 올라간다 (docs/02-audio.md)
-  const playPourFeedback = (colorId: number) => {
-    const chain =
-      pourChain.current?.colorId === colorId ? pourChain.current.count + 1 : 0;
-    pourChain.current = { colorId, count: chain };
-    Haptic.medium();
-    SoundManager.playPour(colorId, chain);
+  const registerPour = (colorId: number): number => {
+    const chainCount =
+      pourChain.current?.colorId === colorId
+        ? pourChain.current.count + 1
+        : 0;
+    pourChain.current = { colorId, count: chainCount };
     recordPour();
     setHint(null);
+    return chainCount;
   };
 
-  const handlePourLand = useCallback(() => {
-    if (pourSafetyTimer.current) {
-      clearTimeout(pourSafetyTimer.current);
-      pourSafetyTimer.current = null;
-    }
+  const handlePourStreamStart = useCallback(() => {
+    const active = activePour.current;
+    if (!active || !mounted.current) return;
+    SoundManager.playPour(active.colorId, active.chainCount, active.count);
+    Haptic.medium();
     stopFlowHaptic.current?.();
-    stopFlowHaptic.current = null;
-    const ap = activePour.current;
-    activePour.current = null;
-    if (!ap || !mounted.current) return;
-    // 착지 '퐁' 촉감 — 화면의 스플래시 링과 같은 순간에 울려 감각을 동기화한다.
+    stopFlowHaptic.current = Haptic.flow(active.timing.streamMs);
+  }, []);
+
+  const handlePourImpact = useCallback(() => {
+    if (!activePour.current || !mounted.current) return;
     Haptic.light();
-    selectTube(ap.toId);
+  }, []);
+
+  const handlePourLand = useCallback(() => {
+    clearPourRuntime();
+    const active = activePour.current;
+    activePour.current = null;
+    if (!active || !mounted.current) return;
+    selectTube(active.toId);
     setAnimatingPour(null);
-  }, [selectTube]);
+  }, [selectTube, clearPourRuntime]);
 
   const handleTubePress = (id: number) => {
-    if (cleared || animatingPour) return;
+    if (cleared || boardCelebrating || animatingPour) return;
 
     if (selectedTube === null) {
-      const tube = tubes.find((t) => t.id === id);
+      const tube = tubes.find((item) => item.id === id);
       if (tube && tube.layers.length > 0) {
         SoundManager.play('select');
         Haptic.light();
@@ -232,81 +282,85 @@ export default function GameScreen() {
       return;
     }
 
-    const fromTube = tubes.find((t) => t.id === selectedTube);
-    const toTube = tubes.find((t) => t.id === id);
+    const fromTube = tubes.find((tube) => tube.id === selectedTube);
+    const toTube = tubes.find((tube) => tube.id === id);
     const result = fromTube && toTube ? pour(fromTube, toTube) : null;
 
-    if (result) {
-      const from = tubeLayouts.current[selectedTube];
-      const to = tubeLayouts.current[id];
-      
-      if (from && to) {
-        const colorId = result.move.colorId;
-        const color = theme.colors[colorId % theme.colors.length];
-        const direction = to.x > from.x ? 'right' : 'left';
-
-        // 소스 튜브를 들어올려(POUR_LIFT) 대상 위로 옮기고 기울이는 변환량(튜브-로컬 단위).
-        const POUR_LIFT = 120;
-        const dir = direction === 'right' ? 1 : -1;
-        const translationX = (to.x - from.x) / scale + (direction === 'right' ? -15 : 15);
-        const translationY = (to.y - from.y) / scale - POUR_LIFT;
-
-        // 스트림 시작점 = 기울어진 소스 튜브의 '입구 입술'(spout)을 실제 변환(이동·선택
-        // 들어올림·회전) 그대로 따라 계산한다. 예전엔 시작점을 대상 위 허공에 고정해
-        // 기울어진 컵 입구와 분리돼 액체가 허공에서 갑자기 생겼다. 이제 컵 끝에서 흘러나온다.
-        // 회전 피벗 = 소스 튜브 컨테이너 중심. 입술 = 중심 기준 (가로 ±, 입구 높이)를
-        // tiltAngle(±70°, TubeComponent와 동일)만큼 회전한 위치.
-        const pivotX = from.x + from.width / 2 + translationX * scale;
-        const pivotY =
-          from.y + from.height / 2 + (translationY - TUBE_SELECTED_LIFT) * scale;
-        const rimY = (TUBE_CONTAINER_TOP_GAP - TUBE_HEIGHT) / 2; // 입구(캔버스 윗변) 로컬 오프셋
-        const lipX = dir * TUBE_WIDTH * 0.35; // 기우는 쪽 입술
-        const rad = (dir * 70 * Math.PI) / 180;
-        const cos = Math.cos(rad);
-        const sin = Math.sin(rad);
-        const fromX = pivotX + (lipX * cos - rimY * sin) * scale;
-        const fromY = pivotY + (lipX * sin + rimY * cos) * scale;
-        const toX = to.x + to.width / 2;
-        const toY = to.y + 10 * scale;
-
-        playPourFeedback(colorId);
-        stopFlowHaptic.current?.();
-        stopFlowHaptic.current = Haptic.flow(POUR_DURATION_MS);
-
-        const nextPour: AnimatingPour = {
-          fromId: selectedTube,
-          toId: id,
-          color,
-          colorId,
-          fromX,
-          fromY,
-          toX,
-          toY,
-          translationX,
-          translationY,
-          direction,
-        };
-        activePour.current = nextPour;
-        setAnimatingPour(nextPour);
-        // 애니메이션 완료 콜백이 누락돼도 보드가 잠기지 않도록 강제 커밋한다.
-        if (pourSafetyTimer.current) clearTimeout(pourSafetyTimer.current);
-        pourSafetyTimer.current = setTimeout(handlePourLand, POUR_DURATION_MS + 300);
-        return;
-      }
-      // 레이아웃 미측정 시 즉시 커밋(폴백)
-      playPourFeedback(result.move.colorId);
+    if (!result) {
+      Haptic.light();
       selectTube(id);
       return;
     }
 
-    // 부을 수 없으면 가벼운 피드백 후 대상으로 선택 전환 (docs/02-audio.md)
-    Haptic.light();
-    selectTube(id);
+    const chainCount = registerPour(result.move.colorId);
+    const from = tubeLayouts.current[selectedTube];
+    const to = tubeLayouts.current[id];
+
+    if (!from || !to) {
+      SoundManager.playPour(
+        result.move.colorId,
+        chainCount,
+        result.move.count,
+      );
+      Haptic.medium();
+      selectTube(id);
+      return;
+    }
+
+    const colorId = result.move.colorId;
+    const color = theme.colors[colorId % theme.colors.length];
+    const direction = to.x > from.x ? 'right' : 'left';
+    const directionSign = direction === 'right' ? 1 : -1;
+    const pourLift = 120;
+    const translationX =
+      (to.x - from.x) / scale + (direction === 'right' ? -15 : 15);
+    const translationY = (to.y - from.y) / scale - pourLift;
+
+    const pivotX = from.x + from.width / 2 + translationX * scale;
+    const pivotY =
+      from.y +
+      from.height / 2 +
+      (translationY - TUBE_SELECTED_LIFT) * scale;
+    const rimY = (TUBE_CONTAINER_TOP_GAP - TUBE_HEIGHT) / 2;
+    const lipX = directionSign * TUBE_WIDTH * 0.35;
+    const radians = (directionSign * 70 * Math.PI) / 180;
+    const cos = Math.cos(radians);
+    const sin = Math.sin(radians);
+    const fromX = pivotX + (lipX * cos - rimY * sin) * scale;
+    const fromY = pivotY + (lipX * sin + rimY * cos) * scale;
+    const toX = to.x + to.width / 2;
+    const toY = to.y + 10 * scale;
+    const timing = getPourTiming(result.move.count);
+
+    const nextPour: AnimatingPour = {
+      fromId: selectedTube,
+      toId: id,
+      color,
+      colorId,
+      count: result.move.count,
+      chainCount,
+      timing,
+      fromX,
+      fromY,
+      toX,
+      toY,
+      translationX,
+      translationY,
+      direction,
+    };
+
+    clearPourRuntime();
+    pourProgress.value = 0;
+    activePour.current = nextPour;
+    setAnimatingPour(nextPour);
+    pourSafetyTimer.current = setTimeout(
+      handlePourLand,
+      timing.totalMs + 400,
+    );
   };
 
-  // 힌트 (T143): 솔버의 다음 1수를 하이라이트. 코인 부족 시 리워드 광고로 대체
   const handleHint = () => {
-    if (cleared || animatingPour || hint) return;
+    if (cleared || boardCelebrating || animatingPour || hint) return;
     SoundManager.play('button_tap');
     Haptic.light();
 
@@ -323,7 +377,6 @@ export default function GameScreen() {
     });
   };
 
-  // 추가 튜브 (T144): 리워드 광고를 끝까지 보면 빈 튜브 1개 (보드당 1회, 클래식 전용)
   const handleAddTube = () => {
     SoundManager.play('button_tap');
     Haptic.light();
@@ -333,7 +386,7 @@ export default function GameScreen() {
   };
 
   const handleUndo = () => {
-    if (animatingPour) return;
+    if (cleared || boardCelebrating || animatingPour) return;
     SoundManager.play('button_tap');
     Haptic.light();
     pourChain.current = null;
@@ -342,16 +395,20 @@ export default function GameScreen() {
   };
 
   const handleReset = () => {
-    if (animatingPour) return;
+    if (cleared || boardCelebrating || animatingPour) return;
     SoundManager.play('button_tap');
     Haptic.light();
     prevCompleted.current = new Set();
     pourChain.current = null;
+    rewardedClear.current = false;
     setHint(null);
+    setBoardCelebrating(false);
+    setShowClearModal(false);
     reset();
   };
 
   const handlePause = () => {
+    if (animatingPour) return;
     SoundManager.play('button_tap');
     Haptic.light();
     router.back();
@@ -360,29 +417,39 @@ export default function GameScreen() {
   const handleNextLevel = useCallback(() => {
     SoundManager.play('button_tap');
     Haptic.light();
-    if (pourSafetyTimer.current) {
-      clearTimeout(pourSafetyTimer.current);
-      pourSafetyTimer.current = null;
-    }
+    clearPourRuntime();
+    clearCelebrationRuntime();
+    setBoardCelebrating(false);
+    setShowClearModal(false);
+    rewardedClear.current = false;
+
     if (mode === 'classic') {
       startNewGame('classic', userLevel);
-      // 보상을 확인하고 다음 레벨로 넘어가는 이 순간에만 전면광고를 노출한다.
       AdManager.maybeShowInterstitial('classic');
     } else {
       startNewGame('zen');
     }
+
     prevCompleted.current = new Set();
     pourChain.current = null;
     activePour.current = null;
     setHint(null);
     setAnimatingPour(null);
-  }, [mode, userLevel, startNewGame]);
+  }, [
+    mode,
+    userLevel,
+    startNewGame,
+    clearPourRuntime,
+    clearCelebrationRuntime,
+  ]);
 
   const handleMenu = useCallback(() => {
     SoundManager.play('button_tap');
     Haptic.light();
+    clearPourRuntime();
+    clearCelebrationRuntime();
     router.back();
-  }, [router]);
+  }, [router, clearPourRuntime, clearCelebrationRuntime]);
 
   return (
     <SafeAreaView
@@ -402,8 +469,21 @@ export default function GameScreen() {
 
       <View style={styles.boardContainer}>
         <View style={styles.tubeGrid}>
-          {tubes.map((tube) => {
+          {tubes.map((tube, index) => {
             const isFrom = animatingPour?.fromId === tube.id;
+            const isTo = animatingPour?.toId === tube.id;
+            let pourPreview: TubePourPreview | undefined;
+            if (animatingPour && (isFrom || isTo)) {
+              pourPreview = {
+                role: isFrom ? 'source' : 'target',
+                color: animatingPour.color,
+                count: animatingPour.count,
+                progress: pourProgress,
+                streamStartRatio: animatingPour.timing.streamStartRatio,
+                streamEndRatio: animatingPour.timing.streamEndRatio,
+              };
+            }
+
             return (
               <View
                 key={tube.id}
@@ -421,18 +501,29 @@ export default function GameScreen() {
                     selected={selectedTube === tube.id}
                     completed={isTubeComplete(tube)}
                     hinted={hint?.from === tube.id || hint?.to === tube.id}
+                    celebrating={boardCelebrating}
+                    celebrationDelayMs={index * 65}
+                    pourPreview={pourPreview}
                     onPress={() => handleTubePress(tube.id)}
-                    tiltAngle={isFrom ? (animatingPour.direction === 'right' ? 70 : -70) : 0}
-                    translationX={isFrom ? animatingPour.translationX : 0}
-                    translationY={isFrom ? animatingPour.translationY : 0}
+                    tiltAngle={
+                      isFrom
+                        ? animatingPour.direction === 'right'
+                          ? 70
+                          : -70
+                        : 0
+                    }
+                    translationX={
+                      isFrom ? animatingPour.translationX : 0
+                    }
+                    translationY={
+                      isFrom ? animatingPour.translationY : 0
+                    }
                   />
                 </View>
               </View>
             );
           })}
 
-          {/* 붓기 스트림은 튜브 onLayout과 같은 좌표계(tubeGrid)에 그려야 한다.
-              boardContainer에 두면 tubeGrid가 중앙 정렬된 만큼 위로 어긋나 스트림이 화면 상단에 뜬다. */}
           {animatingPour && (
             <PourAnimation
               fromX={animatingPour.fromX}
@@ -440,11 +531,21 @@ export default function GameScreen() {
               toX={animatingPour.toX}
               toY={animatingPour.toY}
               color={animatingPour.color}
+              layerCount={animatingPour.count}
+              progress={pourProgress}
               scale={scale}
+              onStreamStart={handlePourStreamStart}
+              onImpact={handlePourImpact}
               onComplete={handlePourLand}
             />
           )}
         </View>
+
+        <BoardCelebration
+          visible={boardCelebrating}
+          colors={theme.colors}
+          seed={level + moves.length * 17}
+        />
       </View>
 
       <StuckModal
@@ -458,7 +559,7 @@ export default function GameScreen() {
       />
 
       <ClearModal
-        visible={cleared}
+        visible={showClearModal}
         level={level}
         moveCount={moves.length}
         mode={mode}

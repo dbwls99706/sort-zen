@@ -1,35 +1,37 @@
 import React, { useMemo } from 'react';
 import { StyleSheet } from 'react-native';
 import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
   Easing,
   SharedValue,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withTiming,
 } from 'react-native-reanimated';
 import { prand } from '../utils/prand';
 
-// 웹 전용: Skia Group/RoundedRect 대신 Reanimated Animated.View로 동일한
-// 발사각/속도/중력/페이드 물리를 재현한다(웹에서도 reanimated 워클릿 동작).
 const BURST_DURATION_MS = 2300;
-const PIECE_COUNT = 50;
-const FADE_START = 0.78;
+const FADE_START = 0.76;
 
 type Piece = {
   angle: number;
   speed: number;
   gravity: number;
-  rot: number;
+  rotation: number;
   size: number;
   color: string;
   flutterFreq: number;
   flutterPhase: number;
+  round: boolean;
 };
 
 type ConfettiProps = {
   colors: string[];
   originX: number;
   originY: number;
+  seed?: number;
+  intensity?: 1 | 2 | 3;
+  delayMs?: number;
 };
 
 function ConfettiPiece({
@@ -49,15 +51,20 @@ function ConfettiPiece({
     const y =
       originY + Math.sin(piece.angle) * piece.speed * t + piece.gravity * t * t;
     const opacity =
-      t < FADE_START ? 1 : Math.max(0, 1 - (t - FADE_START) / (1 - FADE_START));
+      t <= 0
+        ? 0
+        : t < FADE_START
+          ? 1
+          : Math.max(0, 1 - (t - FADE_START) / (1 - FADE_START));
     const flutter = Math.cos(piece.flutterPhase + t * piece.flutterFreq);
     return {
       opacity,
       transform: [
         { translateX: x },
         { translateY: y },
-        { rotate: `${piece.rot * t}rad` },
-        { scaleX: flutter },
+        { rotate: `${piece.rotation * t}rad` },
+        { scaleX: piece.round ? 1 : flutter },
+        { scale: 0.45 + Math.min(1, t * 8) * 0.55 },
       ],
     };
   });
@@ -66,44 +73,66 @@ function ConfettiPiece({
     <Animated.View
       style={[
         styles.piece,
-        { width: piece.size, height: piece.size * 0.6, backgroundColor: piece.color },
+        {
+          width: piece.size,
+          height: piece.round ? piece.size : piece.size * 0.6,
+          borderRadius: piece.round ? piece.size / 2 : 1.5,
+          backgroundColor: piece.color,
+        },
         style,
       ]}
     />
   );
 }
 
-/** 클리어 순간 카드 위로 터지는 색종이 파티클 (웹) */
-export function Confetti({ colors, originX, originY }: ConfettiProps) {
+export function Confetti({
+  colors,
+  originX,
+  originY,
+  seed = 0,
+  intensity = 2,
+  delayMs = 0,
+}: ConfettiProps) {
   const progress = useSharedValue(0);
 
   React.useEffect(() => {
-    progress.value = withTiming(1, {
-      duration: BURST_DURATION_MS,
-      easing: Easing.out(Easing.quad),
-    });
-  }, [progress]);
+    progress.value = 0;
+    progress.value = withDelay(
+      delayMs,
+      withTiming(1, {
+        duration: BURST_DURATION_MS,
+        easing: Easing.out(Easing.quad),
+      }),
+    );
+  }, [progress, delayMs]);
 
+  const pieceCount = 26 + intensity * 16;
   const pieces = useMemo<Piece[]>(
-    () =>
-      Array.from({ length: PIECE_COUNT }, (_, i) => ({
-        angle: -Math.PI / 2 + (prand(i, 1) - 0.5) * Math.PI * 1.7,
-        speed: 160 + prand(i, 2) * 320,
-        gravity: 320 + prand(i, 3) * 220,
-        rot: (prand(i, 4) * 6 - 3) * Math.PI,
-        size: 8 + prand(i, 5) * 8,
-        color: colors[i % colors.length],
-        flutterFreq: 14 + prand(i, 6) * 16,
-        flutterPhase: prand(i, 7) * Math.PI * 2,
-      })),
-    [colors],
+    () => {
+      const palette = colors.length > 0 ? colors : ['#FFD44A', '#FFFFFF'];
+      return Array.from({ length: pieceCount }, (_, index) => {
+        const i = index + seed * 101;
+        return {
+          angle: -Math.PI / 2 + (prand(i, 1) - 0.5) * Math.PI * 1.76,
+          speed: 150 + prand(i, 2) * (250 + intensity * 70),
+          gravity: 300 + prand(i, 3) * 250,
+          rotation: (prand(i, 4) * 6 - 3) * Math.PI,
+          size: 7 + prand(i, 5) * (8 + intensity),
+          color: palette[(index + seed) % palette.length],
+          flutterFreq: 13 + prand(i, 6) * 18,
+          flutterPhase: prand(i, 7) * Math.PI * 2,
+          round: index % 4 === 0,
+        };
+      });
+    },
+    [pieceCount, seed, intensity, colors],
   );
 
   return (
     <Animated.View style={StyleSheet.absoluteFill} pointerEvents="none">
-      {pieces.map((piece, i) => (
+      {pieces.map((piece, index) => (
         <ConfettiPiece
-          key={i}
+          key={index}
           progress={progress}
           piece={piece}
           originX={originX}
@@ -119,6 +148,5 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     top: 0,
-    borderRadius: 1,
   },
 });
