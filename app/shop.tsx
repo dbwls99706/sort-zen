@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Pressable, Alert, StyleSheet } from 'react-native';
+import { View, Text, Pressable, Alert, StyleSheet, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../src/components/ThemeProvider';
@@ -90,125 +90,125 @@ export default function ShopScreen() {
     const n = await SubscriptionManager.restorePurchases();
     Alert.alert(
       n > 0 ? t('restored') : t('nothing_to_restore'),
-      n > 0
-        ? `${n} ${t('purchases_restored')}`
-        : t('no_restorable'),
+      n > 0 ? `${n} ${t('purchases_restored')}` : t('no_restorable'),
     );
   };
 
   return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: theme.background }]}
-    >
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <View style={styles.header}>
-        <Pressable onPress={handleBack}>
+        <Pressable
+          onPress={handleBack}
+          style={styles.backButton}
+          accessibilityRole="button"
+          accessibilityLabel={t('back')}
+        >
           <Text style={[styles.backText, { color: theme.accent }]}>←</Text>
         </Pressable>
         <Text style={[styles.title, { color: theme.text }]}>{t('shop')}</Text>
         <View style={styles.spacer} />
       </View>
 
-      {/* 무료 코인 — 리워드 광고로 코인을 충전해 힌트 등에 사용 (구독자에게도 자율 제공) */}
-      <View style={[styles.card, { backgroundColor: theme.surface }]}>
-        <Text style={[styles.cardTitle, { color: theme.text }]}>
-          {t('free_coins')} · 🪙 {coins}
-        </Text>
-        <Text style={[styles.cardDesc, { color: theme.textSecondary }]}>
-          {t('free_coins_desc')}
-        </Text>
-        <Pressable
-          style={[styles.buyButton, { backgroundColor: theme.accent }]}
-          onPress={handleWatchAdForCoins}
-        >
-          <Text style={styles.buyButtonText}>
-            {t('watch_ad_coins', { n: REWARDED_COIN_AMOUNT })}
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: 24 }}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* 무료 코인 — 리워드 광고로 코인을 충전해 힌트 등에 사용 (구독자에게도 자율 제공) */}
+        <View style={[styles.card, { backgroundColor: theme.surface }]}>
+          <Text style={[styles.cardTitle, { color: theme.text }]}>
+            {t('free_coins')} · 🪙 {coins}
           </Text>
-        </Pressable>
-      </View>
-
-      {isPremium ? (
-        <View style={styles.premiumBadge}>
-          <Text style={[styles.premiumText, { color: theme.accent }]}>
-            {t('premium_active')} ({premiumType})
+          <Text style={[styles.cardDesc, { color: theme.textSecondary }]}>
+            {t('free_coins_desc')}
           </Text>
-        </View>
-      ) : (
-        <View style={styles.products}>
-          <View style={[styles.card, { backgroundColor: theme.surface }]}>
-            <Text style={[styles.cardTitle, { color: theme.accent }]}>
-              {t('lifetime')}
-            </Text>
-            <Text style={[styles.cardPrice, { color: theme.text }]}>
-              {prices.lifetime}
-            </Text>
-            <Text style={[styles.cardDesc, { color: theme.textSecondary }]}>
-              {t('remove_ads_forever')}
-            </Text>
-            <Pressable
-              style={[styles.buyButton, { backgroundColor: theme.accent }]}
-              onPress={handleBuyLifetime}
-            >
-              <Text style={styles.buyButtonText}>{t('buy')}</Text>
-            </Pressable>
-          </View>
-
-          <View style={styles.divider}>
-            <Text style={[styles.dividerText, { color: theme.textSecondary }]}>
-              {t('or_subscribe')}
-            </Text>
-          </View>
-
-          <View style={[styles.card, { backgroundColor: theme.surface }]}>
-            <Text style={[styles.cardTitle, { color: theme.text }]}>
-              {t('yearly')}
-            </Text>
-            <Text style={[styles.cardPrice, { color: theme.text }]}>
-              {prices.yearly}/yr
-            </Text>
-            <Pressable
-              style={[styles.subButton, { borderColor: theme.accent }]}
-              onPress={() =>
-                handleBuySubscription('sortzen_remove_ads_yearly')
-              }
-            >
-              <Text style={[styles.subButtonText, { color: theme.accent }]}>
-                {t('subscribe')}
-              </Text>
-            </Pressable>
-          </View>
-
-          <View style={[styles.card, { backgroundColor: theme.surface }]}>
-            <Text style={[styles.cardTitle, { color: theme.text }]}>
-              {t('monthly')}
-            </Text>
-            <Text style={[styles.cardPrice, { color: theme.text }]}>
-              {prices.monthly}/mo
-            </Text>
-            <Pressable
-              style={[styles.subButton, { borderColor: theme.accent }]}
-              onPress={() =>
-                handleBuySubscription('sortzen_remove_ads_monthly')
-              }
-            >
-              <Text style={[styles.subButtonText, { color: theme.accent }]}>
-                {t('subscribe')}
-              </Text>
-            </Pressable>
-          </View>
-
-          <Pressable style={styles.restoreButton} onPress={handleRestore}>
-            <Text
-              style={[styles.restoreText, { color: theme.textSecondary }]}
-            >
-              {t('restore')}
+          <Pressable
+            accessibilityRole="button"
+            style={[styles.buyButton, { backgroundColor: theme.accent }]}
+            onPress={handleWatchAdForCoins}
+          >
+            <Text style={styles.buyButtonText}>
+              {t('watch_ad_coins', { n: REWARDED_COIN_AMOUNT })}
             </Text>
           </Pressable>
-
-          <Text style={[styles.disclaimer, { color: theme.textSecondary }]}>
-            {t('subscription_disclaimer')}
-          </Text>
         </View>
-      )}
+
+        {isPremium ? (
+          <View style={styles.premiumBadge}>
+            <Text style={[styles.premiumText, { color: theme.accent }]}>
+              {t('premium_active')} ({premiumType})
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.products}>
+            <View style={[styles.card, { backgroundColor: theme.surface }]}>
+              <Text style={[styles.cardTitle, { color: theme.accent }]}>{t('lifetime')}</Text>
+              <Text style={[styles.cardPrice, { color: theme.text }]}>{prices.lifetime}</Text>
+              <Text style={[styles.cardDesc, { color: theme.textSecondary }]}>
+                {t('remove_ads_forever')}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${t('lifetime')}: ${t('buy')}`}
+                style={[styles.buyButton, { backgroundColor: theme.accent }]}
+                onPress={handleBuyLifetime}
+              >
+                <Text style={styles.buyButtonText}>{t('buy')}</Text>
+              </Pressable>
+            </View>
+
+            <View style={styles.divider}>
+              <Text style={[styles.dividerText, { color: theme.textSecondary }]}>
+                {t('or_subscribe')}
+              </Text>
+            </View>
+
+            <View style={[styles.card, { backgroundColor: theme.surface }]}>
+              <Text style={[styles.cardTitle, { color: theme.text }]}>{t('yearly')}</Text>
+              <Text style={[styles.cardPrice, { color: theme.text }]}>{prices.yearly}/yr</Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${t('yearly')}: ${t('subscribe')}`}
+                style={[styles.subButton, { borderColor: theme.accent }]}
+                onPress={() => handleBuySubscription('sortzen_remove_ads_yearly')}
+              >
+                <Text style={[styles.subButtonText, { color: theme.accent }]}>
+                  {t('subscribe')}
+                </Text>
+              </Pressable>
+            </View>
+
+            <View style={[styles.card, { backgroundColor: theme.surface }]}>
+              <Text style={[styles.cardTitle, { color: theme.text }]}>{t('monthly')}</Text>
+              <Text style={[styles.cardPrice, { color: theme.text }]}>{prices.monthly}/mo</Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${t('monthly')}: ${t('subscribe')}`}
+                style={[styles.subButton, { borderColor: theme.accent }]}
+                onPress={() => handleBuySubscription('sortzen_remove_ads_monthly')}
+              >
+                <Text style={[styles.subButtonText, { color: theme.accent }]}>
+                  {t('subscribe')}
+                </Text>
+              </Pressable>
+            </View>
+
+            <Pressable
+              style={styles.restoreButton}
+              onPress={handleRestore}
+              accessibilityRole="button"
+            >
+              <Text style={[styles.restoreText, { color: theme.textSecondary }]}>
+                {t('restore')}
+              </Text>
+            </Pressable>
+
+            <Text style={[styles.disclaimer, { color: theme.textSecondary }]}>
+              {t('subscription_disclaimer')}
+            </Text>
+          </View>
+        )}
+      </ScrollView>
 
       <AdBanner />
     </SafeAreaView>
@@ -220,6 +220,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 24,
   },
+  backButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -228,7 +229,7 @@ const styles = StyleSheet.create({
   },
   backText: { fontSize: 24 },
   title: { fontSize: 20, fontWeight: 'bold' },
-  spacer: { width: 24 },
+  spacer: { width: 48 },
   premiumBadge: {
     flex: 1,
     justifyContent: 'center',

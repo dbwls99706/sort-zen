@@ -42,7 +42,12 @@ export default function AchievementsScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <View style={styles.header}>
-        <Pressable onPress={handleBack}>
+        <Pressable
+          onPress={handleBack}
+          style={styles.backButton}
+          accessibilityRole="button"
+          accessibilityLabel={t('back')}
+        >
           <Text style={[styles.backText, { color: theme.accent }]}>←</Text>
         </Pressable>
         <Text style={[styles.title, { color: theme.text }]}>{t('achievements')}</Text>
@@ -60,18 +65,11 @@ export default function AchievementsScreen() {
 
         <DailyChallengeCard />
 
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>
-          {t('collection')}
-        </Text>
+        <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('collection')}</Text>
 
         <View style={styles.grid}>
           {ACHIEVEMENTS.map((a) => (
-            <AchievementCard
-              key={a.id}
-              achievement={a}
-              stats={stats}
-              isNew={newSet.has(a.id)}
-            />
+            <AchievementCard key={a.id} achievement={a} stats={stats} isNew={newSet.has(a.id)} />
           ))}
         </View>
       </ScrollView>
@@ -86,6 +84,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 24,
   },
+  backButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -100,7 +99,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   spacer: {
-    width: 24,
+    width: 48,
   },
   scroll: {
     paddingBottom: 16,
