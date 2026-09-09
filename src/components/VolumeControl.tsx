@@ -37,7 +37,8 @@ export function VolumeControl({ label, value, onChange }: VolumeControlProps) {
                 styles.bar,
                 {
                   height: 12 + i * 5,
-                  backgroundColor: i < active ? theme.accent : theme.tubeBackground,
+                  backgroundColor: i < active ? theme.accentInk : 'transparent',
+                  borderColor: i < active ? theme.accentInk : theme.textSecondary,
                 },
               ]}
             />
@@ -61,15 +62,21 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 16,
   },
-  labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  labelRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   bars: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    gap: 4,
+    gap: 8,
   },
   target: {
-    minWidth: 44,
-    height: 44,
+    minWidth: 48,
+    height: 48,
     flex: 1,
     alignItems: 'center',
     justifyContent: 'flex-end',
@@ -77,6 +84,7 @@ const styles = StyleSheet.create({
   },
   bar: {
     width: 13,
+    borderWidth: 1.5,
     borderRadius: 3,
   },
 });

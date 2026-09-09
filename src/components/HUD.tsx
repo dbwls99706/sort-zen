@@ -65,7 +65,7 @@ export function HUD({
           accessible
           accessibilityLabel={`${t('coins')}: ${coins}`}
         >
-          <Text style={[styles.coinMark, { color: theme.accent }]}>◈</Text>
+          <Text style={[styles.coinMark, { color: theme.accentInk }]}>◈</Text>
           <Text style={[styles.coinValue, { color: theme.text }]}>{coins}</Text>
         </View>
       </View>
@@ -116,10 +116,12 @@ export function GameToolbar({
           ]}
         >
           <Icon color={theme.text} size={22} />
-          <Text style={[styles.toolLabel, { color: theme.text }]}>{t(key)}</Text>
-          {key === 'hint' && (
-            <Text style={[styles.toolPrice, { color: theme.accent }]}>◈ {HINT_COST}</Text>
-          )}
+          <Text style={[styles.toolLabel, { color: theme.text }]}>
+            {t(key)}
+            {key === 'hint' && (
+              <Text style={[styles.toolPrice, { color: theme.accentInk }]}> · {HINT_COST}</Text>
+            )}
+          </Text>
         </Pressable>
       ))}
     </View>
@@ -180,17 +182,17 @@ const styles = StyleSheet.create({
   },
   tool: {
     flex: 1,
-    minHeight: 80,
-    borderRadius: 22,
+    minHeight: 68,
+    borderRadius: 18,
     borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 6,
-    paddingVertical: 12,
-    gap: 5,
+    paddingVertical: 8,
+    gap: 4,
   },
-  toolLabel: { fontSize: 12, fontWeight: '600', textAlign: 'center' },
-  toolPrice: { fontSize: 10, fontWeight: '700' },
+  toolLabel: { fontSize: 13, fontWeight: '600', textAlign: 'center' },
+  toolPrice: { fontSize: 12, fontWeight: '600' },
   disabled: { opacity: 0.38 },
   pressed: { opacity: 0.6 },
 });

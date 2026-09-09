@@ -21,7 +21,7 @@ export function MenuArtwork() {
     >
       <View style={[styles.halo, { backgroundColor: theme.accentSoft }]} />
       <View style={[styles.orbit, { borderColor: theme.border }]} />
-      <Text style={[styles.spark, { color: theme.accent }]}>✦</Text>
+      <Text style={[styles.spark, { color: theme.accentInk }]}>✦</Text>
       <View style={styles.tubes}>
         {TUBE_COLORS.map((colors, index) => (
           <View

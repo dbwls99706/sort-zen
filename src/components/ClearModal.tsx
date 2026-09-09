@@ -172,7 +172,7 @@ export function ClearModal({
               { backgroundColor: theme.surface, borderColor: theme.border },
             ]}
           >
-            <Text style={[styles.eyebrow, { color: theme.accent }]}>{t('clear_eyebrow')}</Text>
+            <Text style={[styles.eyebrow, { color: theme.accentInk }]}>{t('clear_eyebrow')}</Text>
             <View
               style={[styles.medallion, { backgroundColor: theme.hero }]}
               accessible
@@ -200,7 +200,7 @@ export function ClearModal({
               </View>
               <View style={[styles.divider, { backgroundColor: theme.border }]} />
               <View style={styles.result}>
-                <Text style={[styles.resultValue, { color: theme.accent }]}>+{coinReward}</Text>
+                <Text style={[styles.resultValue, { color: theme.accentInk }]}>+{coinReward}</Text>
                 <Text style={[styles.resultLabel, { color: theme.textSecondary }]}>
                   {t('coins')}
                 </Text>
@@ -211,7 +211,7 @@ export function ClearModal({
                 <Text style={[styles.dailyText, { color: theme.textSecondary }]}>
                   {t('daily_challenge')}
                 </Text>
-                <Text style={[styles.dailyValue, { color: theme.accent }]}>
+                <Text style={[styles.dailyValue, { color: theme.accentInk }]}>
                   {daily.completed
                     ? `✓ ${t('challenge_done')}`
                     : `${Math.min(daily.progress, daily.goal)} / ${daily.goal}`}

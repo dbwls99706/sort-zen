@@ -1,12 +1,11 @@
+import { ScreenLayout } from '../src/components/ScreenLayout';
 import React, { useEffect } from 'react';
-import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../src/components/ThemeProvider';
 import { useProgressStore } from '../src/store/progressStore';
 import { SoundManager } from '../src/audio/SoundManager';
 import { Haptic } from '../src/utils/haptics';
-import { AdBanner } from '../src/ads/banner';
 import { useTranslation } from '../src/i18n';
 import { ACHIEVEMENTS } from '../src/core/achievements';
 import { AchievementCard } from '../src/components/AchievementCard';
@@ -36,25 +35,13 @@ export default function AchievementsScreen() {
     SoundManager.play('button_tap');
     Haptic.light();
     clearRecentUnlocks();
-    router.back();
+    if (router.canGoBack()) router.back();
+    else router.replace('/');
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={styles.header}>
-        <Pressable
-          onPress={handleBack}
-          style={styles.backButton}
-          accessibilityRole="button"
-          accessibilityLabel={t('back')}
-        >
-          <Text style={[styles.backText, { color: theme.accent }]}>←</Text>
-        </Pressable>
-        <Text style={[styles.title, { color: theme.text }]}>{t('achievements')}</Text>
-        <View style={styles.spacer} />
-      </View>
-
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+    <ScreenLayout title={t('achievements')} onBack={handleBack}>
+      <View style={styles.scroll}>
         {recentUnlocks.length > 0 && (
           <View style={[styles.newBanner, { backgroundColor: theme.accent }]}>
             <Text style={styles.newBannerText}>
@@ -72,35 +59,12 @@ export default function AchievementsScreen() {
             <AchievementCard key={a.id} achievement={a} stats={stats} isNew={newSet.has(a.id)} />
           ))}
         </View>
-      </ScrollView>
-
-      <AdBanner />
-    </SafeAreaView>
+      </View>
+    </ScreenLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingHorizontal: 24,
-  },
-  backButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 16,
-  },
-  backText: {
-    fontSize: 24,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  spacer: {
-    width: 48,
-  },
   scroll: {
     paddingBottom: 16,
     gap: 16,
@@ -125,6 +89,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    rowGap: 14,
+    gap: 12,
   },
 });

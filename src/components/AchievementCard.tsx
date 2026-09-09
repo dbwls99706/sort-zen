@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, useWindowDimensions } from 'react-native';
 import { useTheme } from './ThemeProvider';
 import { useTranslation, TranslationKey } from '../i18n';
 import {
@@ -19,14 +19,13 @@ type Props = {
 
 export function AchievementCard({ achievement, stats, isNew }: Props) {
   const theme = useTheme();
+  const { fontScale } = useWindowDimensions();
   const { t } = useTranslation();
   const unlocked = isUnlocked(achievement, stats);
   const { current, threshold, ratio } = achievementProgress(achievement, stats);
 
   const name =
-    t(`ach_name_${achievement.metric}` as TranslationKey) +
-    ' ' +
-    ROMAN[achievement.tier];
+    t(`ach_name_${achievement.metric}` as TranslationKey) + ' ' + ROMAN[achievement.tier];
   const desc = t(`ach_desc_${achievement.metric}` as TranslationKey, {
     n: threshold,
   });
@@ -35,30 +34,25 @@ export function AchievementCard({ achievement, stats, isNew }: Props) {
     <View
       style={[
         styles.card,
-        { backgroundColor: theme.surface, opacity: unlocked ? 1 : 0.55 },
+        {
+          backgroundColor: theme.surface,
+          minWidth: 130 * Math.min(fontScale, 2),
+          borderColor: theme.border,
+        },
         isNew && { borderColor: theme.accent, borderWidth: 2 },
       ]}
     >
       <Text style={styles.icon}>{unlocked ? achievement.icon : '🔒'}</Text>
-      <Text style={[styles.name, { color: theme.text }]} numberOfLines={1}>
-        {name}
-      </Text>
-      <Text style={[styles.desc, { color: theme.textSecondary }]} numberOfLines={1}>
-        {desc}
-      </Text>
+      <Text style={[styles.name, { color: theme.text }]}>{name}</Text>
+      <Text style={[styles.desc, { color: theme.textSecondary }]}>{desc}</Text>
 
       {unlocked ? (
-        <Text style={[styles.reward, { color: theme.accent }]}>
-          ✓ 🪙 {achievement.reward}
-        </Text>
+        <Text style={[styles.reward, { color: theme.accentInk }]}>✓ 🪙 {achievement.reward}</Text>
       ) : (
         <View style={styles.progressArea}>
           <View style={[styles.track, { backgroundColor: theme.background }]}>
             <View
-              style={[
-                styles.fill,
-                { backgroundColor: theme.accent, width: `${ratio * 100}%` },
-              ]}
+              style={[styles.fill, { backgroundColor: theme.accent, width: `${ratio * 100}%` }]}
             />
           </View>
           <Text style={[styles.progressText, { color: theme.textSecondary }]}>
@@ -72,9 +66,11 @@ export function AchievementCard({ achievement, stats, isNew }: Props) {
 
 const styles = StyleSheet.create({
   card: {
-    width: '47%',
+    flexBasis: '47%',
+    flexGrow: 1,
+    borderWidth: 1,
     borderRadius: 16,
-    padding: 16,
+    padding: 12,
     alignItems: 'center',
   },
   icon: {
@@ -84,9 +80,12 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 15,
     fontWeight: 'bold',
+    textAlign: 'center',
   },
   desc: {
-    fontSize: 12,
+    fontSize: 13,
+    lineHeight: 19,
+    textAlign: 'center',
     marginTop: 2,
     marginBottom: 8,
   },

@@ -12,11 +12,13 @@ import { SubscriptionManager } from '../src/iap/SubscriptionManager';
 import { GameServicesManager } from '../src/services/GameServicesManager';
 import { UpdateManager } from '../src/services/UpdateManager';
 import { useUserStore } from '../src/store/userStore';
+import { useSettingsStore } from '../src/store/settingsStore';
 
 const PLAY_TIME_TICK_MS = 10000;
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts(FONT_ASSETS);
+  const theme = useSettingsStore((state) => state.theme);
 
   useEffect(() => {
     if (fontsLoaded) applyGlobalFont();
@@ -47,7 +49,7 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ErrorBoundary>
         <ThemeProvider>
-          <StatusBar style="auto" />
+          <StatusBar style={theme === 'pastel' ? 'dark' : 'light'} />
           <Stack screenOptions={{ headerShown: false }} />
         </ThemeProvider>
       </ErrorBoundary>

@@ -69,7 +69,7 @@ export const TubeComponent = memo(function TubeComponent(props: TubeProps) {
   });
   const topColor =
     theme.colors[tube.layers[tube.layers.length - 1] % theme.colors.length] ?? theme.accent;
-  const outline = completed ? topColor : selected || hinted ? theme.accent : theme.tubeOutline;
+  const outline = completed ? topColor : selected || hinted ? theme.accentInk : theme.tubeOutline;
 
   return (
     <Pressable
@@ -82,7 +82,10 @@ export const TubeComponent = memo(function TubeComponent(props: TubeProps) {
     >
       <View
         pointerEvents="none"
-        style={[styles.selectionMark, { backgroundColor: selected ? theme.accent : 'transparent' }]}
+        style={[
+          styles.selectionMark,
+          { backgroundColor: selected ? theme.accentInk : 'transparent' },
+        ]}
       />
       <Animated.View pointerEvents="none" style={[styles.container, motion]}>
         <View
