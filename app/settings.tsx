@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Switch, Pressable, Alert, StyleSheet } from 'react-native';
+import { View, Text, Switch, Pressable, Alert, StyleSheet, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSettingsStore } from '../src/store/settingsStore';
@@ -45,8 +45,7 @@ export default function SettingsScreen() {
   const googleSignedIn = useUserStore((s) => s.googleSignedIn);
   const googlePlayerName = useUserStore((s) => s.googlePlayerName);
 
-  const isThemeLocked = (thm: Theme): boolean =>
-    (thm === 'neon' || thm === 'dark') && !isPremium;
+  const isThemeLocked = (thm: Theme): boolean => (thm === 'neon' || thm === 'dark') && !isPremium;
 
   const handleBack = () => {
     SoundManager.play('button_tap');
@@ -66,168 +65,167 @@ export default function SettingsScreen() {
   };
 
   return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: theme.background }]}
-    >
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <View style={styles.header}>
-        <Pressable onPress={handleBack}>
+        <Pressable
+          onPress={handleBack}
+          style={styles.backButton}
+          accessibilityRole="button"
+          accessibilityLabel={t('back')}
+        >
           <Text style={[styles.backText, { color: theme.accent }]}>←</Text>
         </Pressable>
         <Text style={[styles.title, { color: theme.text }]}>{t('settings')}</Text>
         <View style={styles.spacer} />
       </View>
 
-      <View style={styles.section}>
-        <SettingRow
-          label={t('sound')}
-          value={soundEnabled}
-          onToggle={toggleSound}
-          theme={theme}
-        />
-        <SettingRow
-          label={t('bgm')}
-          value={bgmEnabled}
-          onToggle={toggleBgm}
-          theme={theme}
-        />
-        <SettingRow
-          label={t('haptic')}
-          value={hapticEnabled}
-          onToggle={toggleHaptic}
-          theme={theme}
-        />
-      </View>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: 24 }}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.section}>
+          <SettingRow
+            label={t('sound')}
+            value={soundEnabled}
+            onToggle={toggleSound}
+            theme={theme}
+          />
+          <SettingRow label={t('bgm')} value={bgmEnabled} onToggle={toggleBgm} theme={theme} />
+          <SettingRow
+            label={t('haptic')}
+            value={hapticEnabled}
+            onToggle={toggleHaptic}
+            theme={theme}
+          />
+        </View>
 
-      <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>
-        {t('volume')}
-      </Text>
-      <View>
-        <VolumeControl
-          label={t('vol_master')}
-          value={masterVolume}
-          onChange={(v) => {
-            setMasterVolume(v);
-            Haptic.light();
-            SoundManager.refreshBgmVolume();
-            SoundManager.refreshSfxVolume().then(() =>
-              SoundManager.play('button_tap'),
-            );
-          }}
-        />
-        <VolumeControl
-          label={t('vol_sfx')}
-          value={sfxVolume}
-          onChange={(v) => {
-            setSfxVolume(v);
-            Haptic.light();
-            SoundManager.refreshSfxVolume().then(() =>
-              SoundManager.play('button_tap'),
-            );
-          }}
-        />
-        <VolumeControl
-          label={t('vol_bgm')}
-          value={bgmVolume}
-          onChange={(v) => {
-            setBgmVolume(v);
-            Haptic.light();
-            SoundManager.refreshBgmVolume();
-          }}
-        />
-      </View>
+        <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>{t('volume')}</Text>
+        <View>
+          <VolumeControl
+            label={t('vol_master')}
+            value={masterVolume}
+            onChange={(v) => {
+              setMasterVolume(v);
+              Haptic.light();
+              SoundManager.refreshBgmVolume();
+              SoundManager.refreshSfxVolume().then(() => SoundManager.play('button_tap'));
+            }}
+          />
+          <VolumeControl
+            label={t('vol_sfx')}
+            value={sfxVolume}
+            onChange={(v) => {
+              setSfxVolume(v);
+              Haptic.light();
+              SoundManager.refreshSfxVolume().then(() => SoundManager.play('button_tap'));
+            }}
+          />
+          <VolumeControl
+            label={t('vol_bgm')}
+            value={bgmVolume}
+            onChange={(v) => {
+              setBgmVolume(v);
+              Haptic.light();
+              SoundManager.refreshBgmVolume();
+            }}
+          />
+        </View>
 
-      <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>
-        {t('theme')}
-      </Text>
-      <View style={styles.themeRow}>
-        {THEMES.map((thm) => {
-          const locked = isThemeLocked(thm);
-          return (
+        <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>{t('theme')}</Text>
+        <View style={styles.themeRow}>
+          {THEMES.map((thm) => {
+            const locked = isThemeLocked(thm);
+            return (
+              <Pressable
+                key={thm}
+                accessibilityRole="button"
+                accessibilityState={{ selected: currentTheme === thm }}
+                style={[
+                  styles.themeButton,
+                  {
+                    backgroundColor: theme.surface,
+                    borderColor: currentTheme === thm ? theme.accent : 'transparent',
+                    opacity: locked ? 0.5 : 1,
+                  },
+                ]}
+                onPress={() => {
+                  if (locked) {
+                    router.push('/shop');
+                    return;
+                  }
+                  setTheme(thm);
+                  Haptic.light();
+                }}
+              >
+                <Text style={[styles.themeText, { color: theme.text }]}>
+                  {t(thm)}
+                  {locked ? ' 🔒' : ''}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>{t('language')}</Text>
+        <View style={styles.themeRow}>
+          {LANGUAGES.map((lng) => (
             <Pressable
-              key={thm}
+              key={lng}
+              accessibilityRole="button"
+              accessibilityState={{ selected: language === lng }}
               style={[
                 styles.themeButton,
                 {
                   backgroundColor: theme.surface,
-                  borderColor:
-                    currentTheme === thm ? theme.accent : 'transparent',
-                  opacity: locked ? 0.5 : 1,
+                  borderColor: language === lng ? theme.accent : 'transparent',
                 },
               ]}
               onPress={() => {
-                if (locked) {
-                  router.push('/shop');
-                  return;
-                }
-                setTheme(thm);
+                setLanguage(lng);
                 Haptic.light();
               }}
             >
-              <Text style={[styles.themeText, { color: theme.text }]}>
-                {t(thm)}{locked ? ' 🔒' : ''}
+              <Text style={[styles.themeText, { color: theme.text }]}>{LANGUAGE_LABELS[lng]}</Text>
+            </Pressable>
+          ))}
+        </View>
+
+        <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>{t('account')}</Text>
+        {GameServicesManager.isAvailable() ? (
+          googleSignedIn ? (
+            <View style={styles.row}>
+              <Text style={[styles.label, { color: theme.text }]}>
+                {t('signed_in_as', { name: googlePlayerName ?? t('player') })}
+              </Text>
+              <Pressable
+                onPress={handleSignOut}
+                accessibilityRole="button"
+                style={styles.accountButton}
+              >
+                <Text style={[styles.accountAction, { color: theme.accent }]}>{t('sign_out')}</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <Pressable
+              accessibilityRole="button"
+              style={[
+                styles.signInButton,
+                { backgroundColor: theme.surface, borderColor: theme.accent },
+              ]}
+              onPress={handleSignIn}
+            >
+              <Text style={[styles.signInText, { color: theme.accent }]}>
+                {t('sign_in_google')}
               </Text>
             </Pressable>
-          );
-        })}
-      </View>
-
-      <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>
-        {t('language')}
-      </Text>
-      <View style={styles.themeRow}>
-        {LANGUAGES.map((lng) => (
-          <Pressable
-            key={lng}
-            style={[
-              styles.themeButton,
-              {
-                backgroundColor: theme.surface,
-                borderColor:
-                  language === lng ? theme.accent : 'transparent',
-              },
-            ]}
-            onPress={() => {
-              setLanguage(lng);
-              Haptic.light();
-            }}
-          >
-            <Text style={[styles.themeText, { color: theme.text }]}>
-              {LANGUAGE_LABELS[lng]}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-
-      <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>
-        {t('account')}
-      </Text>
-      {GameServicesManager.isAvailable() ? (
-        googleSignedIn ? (
-          <View style={styles.row}>
-            <Text style={[styles.label, { color: theme.text }]}>
-              {t('signed_in_as', { name: googlePlayerName ?? t('player') })}
-            </Text>
-            <Pressable onPress={handleSignOut}>
-              <Text style={[styles.accountAction, { color: theme.accent }]}>
-                {t('sign_out')}
-              </Text>
-            </Pressable>
-          </View>
+          )
         ) : (
-          <Pressable
-            style={[styles.signInButton, { backgroundColor: theme.surface, borderColor: theme.accent }]}
-            onPress={handleSignIn}
-          >
-            <Text style={[styles.signInText, { color: theme.accent }]}>
-              {t('sign_in_google')}
-            </Text>
-          </Pressable>
-        )
-      ) : (
-        <Text style={[styles.label, { color: theme.textSecondary }]}>
-          {t('leaderboard_android_only')}
-        </Text>
-      )}
+          <Text style={[styles.label, { color: theme.textSecondary }]}>
+            {t('leaderboard_android_only')}
+          </Text>
+        )}
+      </ScrollView>
 
       <AdBanner />
     </SafeAreaView>
@@ -245,7 +243,7 @@ function SettingRow({ label, value, onToggle, theme }: SettingRowProps) {
   return (
     <View style={styles.row}>
       <Text style={[styles.label, { color: theme.text }]}>{label}</Text>
-      <Switch value={value} onValueChange={onToggle} />
+      <Switch value={value} onValueChange={onToggle} accessibilityLabel={label} hitSlop={8} />
     </View>
   );
 }
@@ -255,6 +253,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 24,
   },
+  backButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -269,7 +268,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   spacer: {
-    width: 24,
+    width: 48,
   },
   section: {
     marginTop: 24,
@@ -310,6 +309,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textDecorationLine: 'underline',
   },
+  accountButton: { minWidth: 48, minHeight: 48, justifyContent: 'center', alignItems: 'center' },
   signInButton: {
     paddingVertical: 14,
     borderRadius: 12,

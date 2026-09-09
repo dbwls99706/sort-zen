@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useUserStore } from '../src/store/userStore';
@@ -29,39 +29,36 @@ export default function StatsScreen() {
   };
 
   return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: theme.background }]}
-    >
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <View style={styles.header}>
-        <Pressable onPress={handleBack}>
+        <Pressable
+          onPress={handleBack}
+          style={styles.backButton}
+          accessibilityRole="button"
+          accessibilityLabel={t('back')}
+        >
           <Text style={[styles.backText, { color: theme.accent }]}>←</Text>
         </Pressable>
         <Text style={[styles.title, { color: theme.text }]}>{t('stats')}</Text>
         <View style={styles.spacer} />
       </View>
 
-      <View style={styles.grid}>
-        <StatCard
-          label={t('level')}
-          value={`⭐ ${level}`}
-          theme={theme}
-        />
-        <StatCard
-          label={t('cleared')}
-          value={`🏆 ${totalCleared}`}
-          theme={theme}
-        />
-        <StatCard
-          label={t('play_time')}
-          value={`⏱️ ${formatTime(totalPlayTime)}`}
-          theme={theme}
-        />
-        <StatCard
-          label={t('coins')}
-          value={`🪙 ${coins}`}
-          theme={theme}
-        />
-      </View>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: 24 }}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.grid}>
+          <StatCard label={t('level')} value={`⭐ ${level}`} theme={theme} />
+          <StatCard label={t('cleared')} value={`🏆 ${totalCleared}`} theme={theme} />
+          <StatCard
+            label={t('play_time')}
+            value={`⏱️ ${formatTime(totalPlayTime)}`}
+            theme={theme}
+          />
+          <StatCard label={t('coins')} value={`🪙 ${coins}`} theme={theme} />
+        </View>
+      </ScrollView>
 
       <AdBanner />
     </SafeAreaView>
@@ -78,9 +75,7 @@ function StatCard({ label, value, theme }: StatCardProps) {
   return (
     <View style={[styles.card, { backgroundColor: theme.surface }]}>
       <Text style={[styles.cardValue, { color: theme.accent }]}>{value}</Text>
-      <Text style={[styles.cardLabel, { color: theme.textSecondary }]}>
-        {label}
-      </Text>
+      <Text style={[styles.cardLabel, { color: theme.textSecondary }]}>{label}</Text>
     </View>
   );
 }
@@ -90,6 +85,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 24,
   },
+  backButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -104,7 +100,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   spacer: {
-    width: 24,
+    width: 48,
   },
   grid: {
     flexDirection: 'row',

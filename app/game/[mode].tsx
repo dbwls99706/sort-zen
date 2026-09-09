@@ -23,7 +23,6 @@ import { StuckModal } from '../../src/components/StuckModal';
 import { PourAnimation } from '../../src/components/PourAnimation';
 import { SoundManager } from '../../src/audio/SoundManager';
 import { Haptic } from '../../src/utils/haptics';
-import { AdManager } from '../../src/ads/AdManager';
 import { GameServicesManager } from '../../src/services/GameServicesManager';
 import { isTubeComplete } from '../../src/core/rules';
 import { hasLegalMove } from '../../src/core/solver';
@@ -79,7 +78,20 @@ export default function GameScreen() {
     if (router.canGoBack()) router.back();
     else router.replace('/');
   }, [router]);
-  const controls = useBoardControls({ scale, layouts, onReset: resetCelebration, onMenu: goMenu });
+  const startNextLevel = useCallback(() => {
+    resetCelebration();
+    // Unchanged slots do not emit onLayout again on native. Keep their measurements.
+    useGameStore
+      .getState()
+      .startNewGame(mode, mode === 'classic' ? useUserStore.getState().level : undefined);
+  }, [mode, resetCelebration]);
+  const controls = useBoardControls({
+    scale,
+    layouts,
+    onReset: resetCelebration,
+    onMenu: goMenu,
+    onNextLevel: startNextLevel,
+  });
   const { animatingPour, progress, dialog, settle } = controls;
   const stars = calcStars(moves.length, optimalMoves);
   const reward = clearCoinReward(stars);
@@ -153,15 +165,6 @@ export default function GameScreen() {
     },
     [boardSize.width, boardSize.height, settle],
   );
-  const nextLevel = () => {
-    controls.clear();
-    resetCelebration();
-    layouts.current = {};
-    useGameStore
-      .getState()
-      .startNewGame(mode, mode === 'classic' ? useUserStore.getState().level : undefined);
-    if (mode === 'classic') AdManager.maybeShowInterstitial('classic');
-  };
   const instruction = controls.hintBusy
     ? t('hint_searching')
     : (controls.notice ??
@@ -327,7 +330,8 @@ export default function GameScreen() {
         mode={mode}
         stars={stars}
         coinReward={reward}
-        onNextLevel={nextLevel}
+        busy={controls.adBusy}
+        onNextLevel={controls.nextLevel}
         onMenu={controls.menu}
       />
     </SafeAreaView>

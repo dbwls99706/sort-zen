@@ -85,3 +85,5 @@
 - [2026-07-23] EAS 프로덕션 빌드(vc18) 실패 원인 수정: `:react-native-google-mobile-ads:compileReleaseKotlin`에서 play-services-ads 25.4.0(Kotlin 2.3.0 메타데이터)이 프로젝트 Kotlin 2.1.20과 충돌("metadata is 2.3.0, expected 2.1.0"). T181에서 부수적으로 딸려온 광고 SDK 16.4.0 상향이 방아쇠. 툴체인 전체를 흔드는 Kotlin 상향 대신 광고 라이브러리를 16.3.4(play-services-ads 25.0.0, Kotlin 2.1 호환)로 다운그레이드 — Play 컴플라이언스(targetSdk 36 + Billing 9)와 무관한 변경이라 안전. AdManager import는 16.3.x 안정 API만 사용해 코드 변경 없음. verify 통과(153 tests)
 
 - [2026-09-09] 플레이 경험 개선: 외부 모바일·게임 디자인 스킬을 적용한 화면 위계와 고정 조작부, 연속 탭/붓기 동기화, 보드 생성·ASMR·오디오 성능 개선. verify 216개 테스트, Android Hermes/웹 export 및 웹 한 판 클리어·메뉴 재진입 검증 통과. 설계와 검증 방법은 docs/08-play-experience.md 참조.
+- [2026-09-09] 반복 플레이 검증 후속: 네이티브 광고 show()가 닫힘 전에 반환하는 문제와 다음 판에서 동일 배치의 onLayout이 재발행되지 않는 문제 수정. 광고 대기 중 중복 이동 방지·백그라운드 종료 시 일시정지·힌트 유지 보완. 실제 훅/스토어/화면을 연결한 회귀 검사 포함 verify 234개 테스트(26개 스위트), Android prebuild·Hermes/웹 export 통과.
+- [2026-09-09] 작은 화면 검증 후속: 설정·상점·통계 본문 스크롤과 고정 헤더/광고 영역 적용, 겹치던 볼륨 터치 영역을 44px 이상으로 분리하고 수치 표시. 뒤로 버튼 48px 및 접근성 이름/선택 상태 보완. 320×568 웹에서 하단 설정·구매 복원 접근, 언어/볼륨/효과음 전환, 잠긴 테마→상점→복귀, 통계/도전과제/게임 동작 재확인. verify 234개 테스트 및 Android Hermes/웹 export 통과.

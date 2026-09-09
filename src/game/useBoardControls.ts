@@ -33,10 +33,11 @@ type Props = {
   layouts: React.MutableRefObject<Record<number, TubeLayout>>;
   onReset: () => void;
   onMenu: () => void;
+  onNextLevel: () => void;
 };
 
 /** Input reads the current store, independently of React render or visual motion. */
-export function useBoardControls({ scale, layouts, onReset, onMenu }: Props) {
+export function useBoardControls({ scale, layouts, onReset, onMenu, onNextLevel }: Props) {
   const theme = useTheme();
   const progress = useSharedValue(0);
   const [animatingPour, setAnimatingPour] = useState<AnimatingPour | null>(null);
@@ -202,6 +203,7 @@ export function useBoardControls({ scale, layouts, onReset, onMenu }: Props) {
   }, [openDialog]);
   const pause = useCallback(() => openDialog('pause'), [openDialog]);
   const menu = useCallback(() => {
+    if (adPending.current) return;
     blocked.current = true;
     clear();
     onMenu();
@@ -266,6 +268,32 @@ export function useBoardControls({ scale, layouts, onReset, onMenu }: Props) {
     }
   }, []);
 
+  const finishAd = useCallback(() => {
+    adPending.current = false;
+    blocked.current =
+      AppState.currentState === 'background' || AppState.currentState === 'inactive';
+    if (mounted.current) {
+      setAdBusy(false);
+      if (blocked.current && !useGameStore.getState().cleared) setDialog('pause');
+    }
+  }, []);
+
+  const nextLevel = useCallback(async () => {
+    const state = useGameStore.getState();
+    if (!mounted.current || adPending.current || !state.cleared) return;
+    adPending.current = true;
+    blocked.current = true;
+    setAdBusy(true);
+    clear();
+    try {
+      await AdManager.maybeShowInterstitial(state.mode);
+    } finally {
+      if (mounted.current && useGameStore.getState().boardRevision === state.boardRevision)
+        onNextLevel();
+      finishAd();
+    }
+  }, [clear, onNextLevel, finishAd]);
+
   const watchHintAd = useCallback(async () => {
     const offer = offeredHint.current;
     if (!offer || adPending.current) return;
@@ -282,11 +310,9 @@ export function useBoardControls({ scale, layouts, onReset, onMenu }: Props) {
       });
       if (!earned && mounted.current) setNotice('ad_not_ready');
     } finally {
-      adPending.current = false;
-      blocked.current = false;
-      if (mounted.current) setAdBusy(false);
+      finishAd();
     }
-  }, [resume]);
+  }, [resume, finishAd]);
   const addTube = useCallback(async () => {
     const revision = useGameStore.getState().boardRevision;
     if (adPending.current || active.current) return;
@@ -300,11 +326,9 @@ export function useBoardControls({ scale, layouts, onReset, onMenu }: Props) {
       });
       if (!earned && mounted.current) setNotice('ad_not_ready');
     } finally {
-      adPending.current = false;
-      blocked.current = false;
-      if (mounted.current) setAdBusy(false);
+      finishAd();
     }
-  }, []);
+  }, [finishAd]);
 
   useEffect(() => {
     const back = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -375,6 +399,7 @@ export function useBoardControls({ scale, layouts, onReset, onMenu }: Props) {
     requestHint,
     watchHintAd,
     addTube,
+    nextLevel,
     clear,
     settle,
   };
