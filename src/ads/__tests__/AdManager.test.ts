@@ -209,17 +209,53 @@ test('a late rejected show from a closed session cannot cancel its successor', a
 
 test('a presented interstitial excludes rewarded launches until it closes', async () => {
   jest.advanceTimersByTime(6 * 60_000);
-  for (let clear = 0; clear < 3; clear++) await manager.maybeShowInterstitial('classic');
+  for (let clear = 0; clear < 2; clear++) await manager.maybeShowInterstitial('classic');
+  const presentation = manager.maybeShowInterstitial('classic');
+  const nextLevel = jest.fn();
+  void presentation.then(nextLevel);
   const interstitial = mockInterstitial[0];
   expect(interstitial.show).toHaveBeenCalledTimes(1);
+  await Promise.resolve();
+  expect(nextLevel).not.toHaveBeenCalled();
   interstitial.emit('opened');
   await expect(manager.showRewarded(jest.fn())).resolves.toBe(false);
   expect(mockRewarded[0].show).not.toHaveBeenCalled();
+  expect(nextLevel).not.toHaveBeenCalled();
   interstitial.emit('closed');
+  await presentation;
+  expect(nextLevel).toHaveBeenCalledTimes(1);
   const result = manager.showRewarded(jest.fn());
   mockRewarded[0].emit('closed');
   await expect(result).resolves.toBe(false);
 });
+
+test.each(['rejection', 'throw', 'error', 'no-open', 'no-close'])(
+  'interstitial %s releases the level transition and ignores late events',
+  async (failure) => {
+    jest.advanceTimersByTime(6 * 60_000);
+    await manager.maybeShowInterstitial('classic');
+    await manager.maybeShowInterstitial('classic');
+    const ad = mockInterstitial[0];
+    if (failure === 'rejection') ad.show.mockRejectedValueOnce(new Error('show failed'));
+    if (failure === 'throw')
+      ad.show.mockImplementationOnce(() => {
+        throw new Error('show failed');
+      });
+    const transition = manager.maybeShowInterstitial('classic');
+    if (failure === 'error') ad.emit('error');
+    if (failure === 'no-open') jest.advanceTimersByTime(15_000);
+    if (failure === 'no-close') {
+      ad.emit('opened');
+      jest.advanceTimersByTime(180_000);
+    }
+    await expect(transition).resolves.toBeUndefined();
+    const reward = manager.showRewarded(jest.fn());
+    ad.emit('closed');
+    mockRewarded[0].emit('earned');
+    mockRewarded[0].emit('closed');
+    await expect(reward).resolves.toBe(true);
+  },
+);
 
 test('premium, ZEN and first-run protection remain enforced', async () => {
   for (let clear = 0; clear < 6; clear++) await manager.maybeShowInterstitial('classic');

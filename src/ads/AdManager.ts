@@ -29,7 +29,7 @@ class AdManagerClass {
   private rewardedRetry: ReturnType<typeof setTimeout> | null = null;
   private presentationTimer: ReturnType<typeof setTimeout> | null = null;
   private fullscreenAd: FullscreenAd | null = null;
-  private presentationId = 0;
+  private interstitialSession: { ad: InterstitialAd; resolve: () => void } | null = null;
   private rewardSession: RewardSession | null = null;
   private initialization: Promise<void> | null = null;
   private lastInterstitialAt = 0;
@@ -70,6 +70,11 @@ class AdManagerClass {
     if (this.presentationTimer !== null) clearTimeout(this.presentationTimer);
     this.presentationTimer = null;
     this.fullscreenAd = null;
+    if (this.interstitialSession?.ad === ad) {
+      const session = this.interstitialSession;
+      this.interstitialSession = null;
+      session.resolve();
+    }
   }
 
   private retryInterstitial(): void {
@@ -89,8 +94,10 @@ class AdManagerClass {
         this.interstitial = ad;
         this.interstitialListeners = [
           ad.addAdEventListener(AdEventType.OPENED, () => {
-            if (this.fullscreenAd === ad)
+            if (this.fullscreenAd === ad) {
+              this.lastInterstitialAt = Date.now();
               this.watchPresentation(ad, () => this.retireInterstitial(ad), CLOSE_TIMEOUT_MS);
+            }
           }),
           ad.addAdEventListener(AdEventType.CLOSED, () => {
             if (this.interstitial !== ad) return;
@@ -137,16 +144,21 @@ class AdManagerClass {
     });
     const ad = this.interstitial;
     if (!allowed || !ad?.loaded || this.fullscreenAd) return;
-    this.fullscreenAd = ad;
-    const presentationId = ++this.presentationId;
-    this.watchPresentation(ad, () => this.retireInterstitial(ad));
-    try {
-      await ad.show();
-      if (this.presentationId === presentationId) this.lastInterstitialAt = Date.now();
-    } catch {
-      if (this.presentationId === presentationId && this.fullscreenAd === ad)
-        this.retireInterstitial(ad);
-    }
+    // The native show() promise resolves on presentation, before CLOSED.
+    // Keep the next puzzle waiting until the fullscreen session actually ends.
+    return new Promise<void>((resolve) => {
+      const session = { ad, resolve };
+      this.interstitialSession = session;
+      this.fullscreenAd = ad;
+      this.watchPresentation(ad, () => this.retireInterstitial(ad));
+      try {
+        ad.show().catch(() => {
+          if (this.interstitialSession === session) this.retireInterstitial(ad);
+        });
+      } catch {
+        if (this.interstitialSession === session) this.retireInterstitial(ad);
+      }
+    });
   }
 
   private retryRewarded(): void {
@@ -213,7 +225,6 @@ class AdManagerClass {
       const session: RewardSession = { ad, earned: false, resolve, unsubscribe: () => {} };
       this.rewardSession = session;
       this.fullscreenAd = ad;
-      this.presentationId++;
       session.unsubscribe = ad.addAdEventListener(RewardedAdEventType.EARNED_REWARD, () => {
         if (this.rewardSession !== session || session.earned) return;
         session.earned = true;

@@ -36,6 +36,7 @@ type ClearModalProps = {
   mode: 'classic' | 'zen';
   stars: 1 | 2 | 3;
   coinReward: number;
+  busy?: boolean;
   onNextLevel: () => void;
   onMenu: () => void;
 };
@@ -80,6 +81,7 @@ export function ClearModal({
   mode,
   stars,
   coinReward,
+  busy = false,
   onNextLevel,
   onMenu,
 }: ClearModalProps) {
@@ -120,12 +122,12 @@ export function ClearModal({
     transform: [{ translateY: translateY.value }],
   }));
   const leave = (action: () => void) => {
-    if (acted.current) return;
+    if (busy || acted.current) return;
     acted.current = true;
     action();
   };
   const handleShare = async () => {
-    if (sharing.current) return;
+    if (busy || sharing.current) return;
     sharing.current = true;
     SoundManager.play('button_tap');
     Haptic.light();
@@ -218,6 +220,8 @@ export function ClearModal({
             )}
             <Pressable
               accessibilityRole="button"
+              accessibilityState={{ disabled: busy, busy }}
+              disabled={busy}
               onPress={() => leave(onNextLevel)}
               style={({ pressed }) => [
                 styles.next,
@@ -233,6 +237,8 @@ export function ClearModal({
             <View style={styles.secondaryActions}>
               <Pressable
                 accessibilityRole="button"
+                accessibilityState={{ disabled: busy }}
+                disabled={busy}
                 onPress={() => leave(onMenu)}
                 style={({ pressed }) => [styles.secondary, pressed && styles.pressed]}
               >
@@ -243,6 +249,8 @@ export function ClearModal({
               <View style={[styles.secondaryDivider, { backgroundColor: theme.border }]} />
               <Pressable
                 accessibilityRole="button"
+                accessibilityState={{ disabled: busy }}
+                disabled={busy}
                 onPress={handleShare}
                 style={({ pressed }) => [styles.secondary, pressed && styles.pressed]}
               >
