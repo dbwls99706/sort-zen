@@ -122,13 +122,11 @@ export function applyUndo(tubes: Tube[], lastMove: Move): Tube[] {
 
 ## 4. 무한 절차적 레벨 생성기 (`generator.ts`)
 
-> **핵심 원리**: 클리어 상태에서 시작 → 무작위 강제 pour를 N번 적용 → 항상 풀리는 보드가 보장된다 (역방향 생성).
+클리어 상태에서 시작하여 **실제 게임의 최대 연속 레이어 붓기로 정확히 되돌릴 수 있는 이동**만 셔플에 사용한다. 셔플의 역순을 해로 함께 보관하므로 생성 중 DFS 탐색이나 재귀 재시도가 필요 없다.
+
+### 반환값과 입력 의미
 
 ```typescript
-import seedrandom from 'seedrandom';
-import { Tube } from './types';
-import { DEFAULT_CAPACITY } from './constants';
-
 export type GenParams = {
   colors: number;
   filledTubes: number;
@@ -138,64 +136,48 @@ export type GenParams = {
   seed: string;
 };
 
-export function generateLevel(params: GenParams): Tube[] {
-  const { colors, filledTubes, emptyTubes, capacity, shuffleSteps, seed } = params;
-  const rng = seedrandom(seed);
+export type GeneratedLevel = { tubes: Tube[]; solution: Move[] };
 
-  // 1. 클리어 상태 생성
-  let tubes: Tube[] = [];
-  for (let c = 0; c < filledTubes; c++) {
-    tubes.push({ id: c, capacity, layers: Array(capacity).fill(c) });
-  }
-  for (let e = 0; e < emptyTubes; e++) {
-    tubes.push({ id: filledTubes + e, capacity, layers: [] });
-  }
-
-  // 2. 강제 pour로 섞기
-  let attempts = 0;
-  let success = 0;
-  const maxAttempts = shuffleSteps * 10;
-
-  while (success < shuffleSteps && attempts < maxAttempts) {
-    attempts++;
-    const fromIdx = Math.floor(rng() * tubes.length);
-    const toIdx = Math.floor(rng() * tubes.length);
-    if (fromIdx === toIdx) continue;
-
-    const result = forcedPour(tubes[fromIdx], tubes[toIdx]);
-    if (result) {
-      tubes[fromIdx] = result.from;
-      tubes[toIdx] = result.to;
-      success++;
-    }
-  }
-
-  // 3. 너무 쉬운 보드 방지
-  const monochromeCount = tubes.filter(
-    (t) =>
-      t.layers.length === capacity && t.layers.every((l) => l === t.layers[0])
-  ).length;
-  if (monochromeCount >= 2 && shuffleSteps > 10) {
-    return generateLevel({ ...params, seed: seed + '_r' });
-  }
-
-  return tubes;
-}
-
-/**
- * 색상 매칭 무시하고 1개 레이어만 옮기는 강제 pour.
- * 생성기 내부 전용. 사용자 입력에는 절대 사용 금지.
- */
-function forcedPour(from: Tube, to: Tube) {
-  if (from.layers.length === 0) return null;
-  if (to.layers.length >= to.capacity) return null;
-  const color = from.layers[from.layers.length - 1];
-  return {
-    from: { ...from, layers: from.layers.slice(0, -1) },
-    to: { ...to, layers: [...to.layers, color] },
-  };
-}
+export function generateLevelWithSolution(params: GenParams): GeneratedLevel;
+export function generateLevel(params: GenParams): Tube[];
 ```
+
+- `filledTubes`개의 색상을 각각 `capacity`칸씩 만든다. 현재 난이도 설정은 `colors === filledTubes`를 사용한다.
+- 전체 튜브 수는 항상 `filledTubes + emptyTubes`이다. 생성 실패를 이유로 튜브를 추가하지 않는다.
+- `emptyTubes`는 셔플 전 빈 튜브 수이며, **셔플 후에도 동일한 수의 튜브가 완전히 빈다는 의미는 아니다.** 전체 여유 공간 `emptyTubes × capacity`가 여러 튜브에 나뉠 수 있다. 이 의미는 기존 생성기와 같다.
+- 같은 파라미터와 시드는 같은 보드와 해를 반환한다. 실제 새 게임은 난이도 함수가 새 시드를 제공하고, 다시하기는 스토어의 시작 스냅샷을 복원한다.
+- `solution`은 일반 `pour()`를 순서대로 실행하면 클리어되는 해이다. 최단 해라는 보장은 없다. 스토어는 이 길이를 별점 기준으로 사용하며 같은 보드를 다시 동기 탐색하지 않는다.
+
+### 역방향 셔플의 허용 조건
+
+소스 `A` 맨 위의 색 `c`를 `k`칸 떼어 대상 `B` 위에 올리는 셔플을 생각한다. 아래 조건을 모두 만족해야 한다.
+
+1. `A`와 `B`가 다르고, `k`는 `A`의 맨 위 연속 색 길이와 `B`의 남은 용량 이하이다.
+2. 이동 후 `A`는 비어 있거나 맨 위 색이 계속 `c`여야 한다. 혼합 튜브의 맨 위 연속 구간 전체를 떼어 다른 색을 노출하는 셔플은 제외한다.
+3. 이동 전 `B`의 맨 위도 `c`라면 이동 전 `A`가 가득 차 있어야 한다.
+
+이 조건은 게임이 같은 색 여러 칸을 한꺼번에 붓는 경우까지 포함한다.
+
+| 이동 전 B의 맨 위 | 셔플 후 B에서 A로 붓는 실제 칸 수 |
+|---|---|
+| 비어 있거나 `c`와 다른 색 | B의 맨 위 연속 `c`가 정확히 `k`칸이므로 `k`칸을 붓는다. |
+| `c`와 같은 색 | A가 원래 가득 차 있어 남은 공간이 정확히 `k`칸이므로 `k`칸만 붓는다. |
+
+어느 경우든 A가 비어 있거나 같은 색으로 끝나므로 역방향 이동은 합법이며, `pour(B, A)`의 `move.count`가 정확히 `k`가 된다. 따라서 각 셔플 직전 상태를 정확히 복원할 수 있고, 기록한 이동을 역순으로 재생하면 최초 클리어 상태에 도달한다. 색상 일치 조건을 무시한 임의의 한 칸 이동만으로는 이 보장을 할 수 없다.
+
+### 종료 한계와 보드 선택
+
+- 셔플 수를 `0..MAX_SHUFFLE_STEPS`로 제한한다. 현재 상한은 300이다.
+- 한 단계의 후보 수는 튜브 수를 `T`, 용량을 `C`라고 할 때 최대 `T × (T − 1) × C`이다. 후보를 중복 없이 검사하고, 이미 방문한 상태는 제외한다.
+- 더 진행할 후보가 없으면 즉시 종료한다. 생성 중 솔버 호출, 재귀, 무제한 재시도는 없다.
+- 후보 전체의 보드를 미리 복사하지 않고 선택한 후보만 구체화해 할당량을 줄인다.
+- 방문한 상태 중 가득 찬 단색 튜브가 적고 색 경계가 많은 보드를 선택한다. 점수가 같으면 먼저 찾은 보드와 더 짧은 셔플 경로를 유지한다.
+- 선택한 보드에 해당하는 셔플 접두 구간의 역순만 반환한다. 이후 셔플은 반환하는 해에 섞이지 않는다.
+- 셔플 0회 등 혼합이 불가능한 입력은 클리어 보드와 빈 해를 반환할 수 있다. 혼합 선호 점수 자체를 모든 입력에서의 난이도 보장으로 해석하지 않는다.
+
+### 검증
+
+`generator.test.ts`는 시드 재현성, 총 튜브 수, 색상 보존, 용량, 시작 완성 튜브 회귀를 확인한다. 또한 용량 2~5, 색상 3·6·9·12, 여유 튜브 1~3의 조합에서 반환된 해를 실제 `pour()`로 재생하여 **매 이동의 색·출발·도착·최대 이동 칸 수가 기록과 정확히 같고 최종 보드가 클리어됨**을 검사한다. 과도한 셔플 요청이 설정 상한과 같은 결과를 내는지도 확인한다.
 
 ---
 

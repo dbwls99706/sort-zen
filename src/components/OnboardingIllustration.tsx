@@ -1,96 +1,120 @@
-import React, { useMemo } from 'react';
-import { Canvas, Group, RoundedRect, Path } from '@shopify/react-native-skia';
-import {
-  useSharedValue,
-  useDerivedValue,
-  withRepeat,
-  withTiming,
-  Easing,
-} from 'react-native-reanimated';
+import React from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 import { useTheme } from './ThemeProvider';
-import { makeArcPath, trimmedStream } from './streamPath';
 
-const W = 218;
-const H = 150;
-const TUBE_W = 34;
-const TUBE_H = 92;
-const BASE_Y = 124;
-const SEG_H = 22;
-const TUBE_X = [26, 92, 158];
-const FILL_PHASE = 0.5;
-const ARC_LIFT = 34;
-
-// 데코용 미니 보드 (각 튜브의 색 인덱스 구성)
-const LAYOUT: number[][] = [
-  [0, 1, 1],
-  [2, 0],
-  [1, 2, 0],
+const DEMO_BOARDS = [
+  [
+    [0, 0, 1, 1],
+    [1, 1],
+    [0, 0],
+  ],
+  [
+    [0, 0],
+    [1, 1, 1, 1],
+    [0, 0],
+  ],
+  [[0, 0, 0, 0], [1, 1, 1, 1], []],
 ];
 
-/** 온보딩용: 한 튜브에서 다른 튜브로 액체가 반복해서 흐르는 미니 일러스트 */
-export function OnboardingIllustration() {
+/** Show a legal matching-color pour, then the finished board, without an idle render loop. */
+export function OnboardingIllustration({ step = 0 }: { step?: number }) {
   const theme = useTheme();
-  const progress = useSharedValue(0);
-
-  React.useEffect(() => {
-    progress.value = withRepeat(
-      withTiming(1, { duration: 1900, easing: Easing.inOut(Easing.quad) }),
-      -1,
-      false,
-    );
-  }, [progress]);
-
-  const fromX = TUBE_X[0] + TUBE_W / 2;
-  const fromY = BASE_Y - LAYOUT[0].length * SEG_H;
-  const toX = TUBE_X[1] + TUBE_W / 2;
-  const toY = BASE_Y - LAYOUT[1].length * SEG_H;
-
-  const basePath = useMemo(
-    () => makeArcPath(fromX, fromY, toX, toY, ARC_LIFT),
-    [fromX, fromY, toX, toY],
-  );
-
-  const streamPath = useDerivedValue(() =>
-    trimmedStream(basePath, progress.value, FILL_PHASE),
-  );
-
+  const board = DEMO_BOARDS[Math.min(step, DEMO_BOARDS.length - 1)];
   return (
-    <Canvas style={{ width: W, height: H, marginBottom: 28 }}>
-      {TUBE_X.map((x, ti) => (
-        <Group key={ti}>
-          {LAYOUT[ti].map((colorId, si) => (
-            <RoundedRect
-              key={si}
-              x={x + 3}
-              y={BASE_Y - (si + 1) * SEG_H}
-              width={TUBE_W - 6}
-              height={SEG_H}
-              r={0}
-              color={theme.colors[colorId % theme.colors.length]}
-            />
-          ))}
-          <RoundedRect
-            x={x}
-            y={BASE_Y - TUBE_H}
-            width={TUBE_W}
-            height={TUBE_H}
-            r={10}
-            style="stroke"
-            strokeWidth={2.5}
-            color={theme.tubeOutline}
-          />
-        </Group>
-      ))}
-
-      <Path
-        path={streamPath}
-        style="stroke"
-        strokeWidth={7}
-        strokeCap="round"
-        strokeJoin="round"
-        color={theme.colors[LAYOUT[0][LAYOUT[0].length - 1] % theme.colors.length]}
-        opacity={0.92}
-      />
-    </Canvas>
+    <View
+      style={styles.scene}
+      pointerEvents="none"
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
+      <View style={[styles.backdrop, { backgroundColor: theme.accentSoft }]} />
+      <View style={styles.tubes}>
+        {board.map((tube, index) => {
+          const full = tube.length === 4 && tube.every((color) => color === tube[0]);
+          const selected = step === 0 && index === 0;
+          return (
+            <View key={index} style={[styles.tubeColumn, selected && styles.selected]}>
+              <Text
+                style={[
+                  styles.marker,
+                  { color: selected ? theme.accent : full ? theme.success : 'transparent' },
+                ]}
+              >
+                {full ? '✓' : '↓'}
+              </Text>
+              <View
+                style={[
+                  styles.rim,
+                  {
+                    borderColor: selected ? theme.accent : theme.tubeOutline,
+                    backgroundColor: theme.surface,
+                  },
+                ]}
+              />
+              <View
+                style={[
+                  styles.tube,
+                  {
+                    borderColor: selected ? theme.accent : theme.tubeOutline,
+                    backgroundColor: theme.surface,
+                  },
+                ]}
+              >
+                {tube
+                  .slice()
+                  .reverse()
+                  .map((color, layer) => (
+                    <View
+                      key={layer}
+                      style={[styles.liquid, { backgroundColor: theme.colors[color] }]}
+                    />
+                  ))}
+                <View style={styles.shine} />
+              </View>
+            </View>
+          );
+        })}
+      </View>
+      {step === 0 && <Text style={[styles.arrow, { color: theme.accent }]}>→</Text>}
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  scene: {
+    width: 260,
+    height: 224,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  backdrop: { position: 'absolute', width: 208, height: 208, borderRadius: 104 },
+  tubes: { flexDirection: 'row', alignItems: 'flex-end', gap: 24 },
+  tubeColumn: { width: 44 },
+  selected: { transform: [{ translateY: -10 }] },
+  marker: { fontSize: 22, height: 32, fontWeight: '700', textAlign: 'center' },
+  rim: { height: 8, borderWidth: 1.5, borderRadius: 4, zIndex: 1 },
+  tube: {
+    height: 132,
+    marginTop: -3,
+    marginHorizontal: 3,
+    padding: 3,
+    paddingTop: 0,
+    borderWidth: 1.5,
+    borderBottomLeftRadius: 21,
+    borderBottomRightRadius: 21,
+    overflow: 'hidden',
+    justifyContent: 'flex-end',
+  },
+  liquid: { height: 28 },
+  shine: {
+    position: 'absolute',
+    width: 4,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.45)',
+    left: 7,
+    top: 12,
+    bottom: 12,
+  },
+  arrow: { position: 'absolute', fontSize: 28, top: 20, left: 87 },
+});

@@ -1,14 +1,8 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
-import Animated, {
-  Easing,
-  SharedValue,
-  useAnimatedStyle,
-  withTiming,
-} from 'react-native-reanimated';
-import { getPourTiming, getStreamProgress } from './pourTiming';
-
-const BASE_DROP_SIZE = 10;
+import Animated, { SharedValue, useAnimatedStyle } from 'react-native-reanimated';
+import { getStreamProgress, getStreamWindow, POUR_STREAM_FILL_PHASE } from './pourTiming';
+import { usePourTimeline } from './tube/usePourTimeline';
 
 type PourAnimationProps = {
   fromX: number;
@@ -23,139 +17,73 @@ type PourAnimationProps = {
   onImpact?: () => void;
   onComplete: () => void;
 };
+const BASE_STREAM_WIDTH = 5;
+const SPLASH_RADIUS = 13;
 
-type DropProps = {
-  index: number;
-  count: number;
-  progress: SharedValue<number>;
-  fromX: number;
-  fromY: number;
-  toX: number;
-  toY: number;
-  color: string;
-  scale: number;
-  timing: ReturnType<typeof getPourTiming>;
-};
-
-function Drop({
-  index,
-  count,
-  progress,
-  fromX,
-  fromY,
-  toX,
-  toY,
-  color,
-  scale,
-  timing,
-}: DropProps) {
-  const style = useAnimatedStyle(() => {
+export function PourAnimation(props: PourAnimationProps) {
+  const { fromX, fromY, toX, toY, color, layerCount, progress, scale = 1 } = props;
+  const timing = usePourTimeline(progress, layerCount, props);
+  const width = (BASE_STREAM_WIDTH + Math.min(4, layerCount) * 0.7) * scale;
+  const distance = Math.hypot(toX - fromX, toY - fromY);
+  const angle = Math.atan2(-(toX - fromX), toY - fromY);
+  const streamStyle = useAnimatedStyle(() => {
     const stream = getStreamProgress(progress.value, timing);
-    const delay = (index / count) * 0.42;
-    const t = Math.max(0, Math.min(1, (stream - delay) / 0.58));
-    const fall = t * t * 0.55 + t * 0.45;
-    const x = fromX + (toX - fromX) * t;
-    const y =
-      fromY +
-      (toY - fromY) * fall -
-      Math.sin(t * Math.PI) * 30 * scale;
-    const size = BASE_DROP_SIZE * scale * (1 - t * 0.25);
-
+    const { head, tail } = getStreamWindow(stream);
+    const height = distance * (head - tail);
+    const center = (head + tail) / 2;
     return {
-      left: x - size / 2,
-      top: y - size / 2,
-      width: size,
-      height: size * 1.25,
-      borderRadius: size,
-      opacity: t > 0 && t < 1 ? 1 : 0,
+      height,
+      opacity: stream > 0 && stream < 1 ? 1 : 0,
+      transform: [
+        { translateX: fromX + (toX - fromX) * center - width / 2 },
+        { translateY: fromY + (toY - fromY) * center - height / 2 },
+        { rotate: `${angle}rad` },
+      ],
     };
   });
-
-  return (
-    <Animated.View style={[styles.drop, { backgroundColor: color }, style]} />
-  );
-}
-
-export function PourAnimation({
-  fromX,
-  fromY,
-  toX,
-  toY,
-  color,
-  layerCount,
-  progress,
-  scale = 1,
-  onStreamStart,
-  onImpact,
-  onComplete,
-}: PourAnimationProps) {
-  const timing = React.useMemo(() => getPourTiming(layerCount), [layerCount]);
-  const dropCount = 14 + timing.layerCount * 3;
-
-  React.useEffect(() => {
-    progress.value = 0;
-    progress.value = withTiming(1, {
-      duration: timing.totalMs,
-      easing: Easing.bezier(0.3, 0, 0.2, 1),
-    });
-
-    const streamTimer = onStreamStart
-      ? setTimeout(onStreamStart, timing.streamStartMs)
-      : null;
-    const impactTimer = onImpact ? setTimeout(onImpact, timing.impactMs) : null;
-    const completeTimer = setTimeout(onComplete, timing.totalMs);
-
-    return () => {
-      if (streamTimer) clearTimeout(streamTimer);
-      if (impactTimer) clearTimeout(impactTimer);
-      clearTimeout(completeTimer);
-    };
-  }, [progress, timing, onStreamStart, onImpact, onComplete]);
-
   const splashStyle = useAnimatedStyle(() => {
     const stream = getStreamProgress(progress.value, timing);
-    const t = Math.max(0, Math.min(1, (stream - 0.58) / 0.42));
-    const size = (12 + 38 * t) * scale;
+    const t = Math.max(
+      0,
+      Math.min(1, (stream - POUR_STREAM_FILL_PHASE) / (1 - POUR_STREAM_FILL_PHASE)),
+    );
+    const size = (3 + t * SPLASH_RADIUS) * 2 * scale;
     return {
-      left: toX - size / 2,
-      top: toY - size / 2,
       width: size,
       height: size,
       borderRadius: size / 2,
-      opacity: t > 0 ? (1 - t) * 0.8 : 0,
-      borderWidth: 2 * scale,
-      borderColor: color,
+      transform: [{ translateX: toX - size / 2 }, { translateY: toY - size / 2 }],
+      opacity: t > 0 ? (1 - t) * 0.65 : 0,
     };
   });
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      {Array.from({ length: dropCount }, (_, index) => (
-        <Drop
-          key={index}
-          index={index}
-          count={dropCount}
-          progress={progress}
-          fromX={fromX}
-          fromY={fromY}
-          toX={toX}
-          toY={toY}
-          color={color}
-          scale={scale}
-          timing={timing}
-        />
-      ))}
-      <Animated.View style={[styles.splash, splashStyle]} />
+      <Animated.View
+        style={[
+          styles.stream,
+          { width, borderRadius: width / 2, backgroundColor: color },
+          streamStyle,
+        ]}
+      >
+        <View style={styles.highlight} />
+      </Animated.View>
+      <Animated.View
+        style={[styles.splash, { borderColor: color, borderWidth: 1.5 * scale }, splashStyle]}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  drop: {
+  stream: { position: 'absolute', top: 0, left: 0, overflow: 'hidden' },
+  highlight: {
     position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: '25%',
+    width: '20%',
+    backgroundColor: 'rgba(255,255,255,0.5)',
   },
-  splash: {
-    position: 'absolute',
-    backgroundColor: 'transparent',
-  },
+  splash: { position: 'absolute', top: 0, left: 0 },
 });

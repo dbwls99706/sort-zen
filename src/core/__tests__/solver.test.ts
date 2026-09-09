@@ -1,6 +1,6 @@
 import { Tube } from '../types';
 import { pour, isCleared } from '../rules';
-import { findSolution, isSolvable, hasLegalMove } from '../solver';
+import { findSolution, findSolutionAsync, isSolvable, hasLegalMove } from '../solver';
 import { generateLevel } from '../generator';
 import { getDifficulty } from '../difficulty';
 
@@ -11,9 +11,7 @@ function replay(tubes: Tube[], moves: ReturnType<typeof findSolution>): Tube[] {
     const from = cur.find((t) => t.id === m.from)!;
     const to = cur.find((t) => t.id === m.to)!;
     const res = pour(from, to)!;
-    cur = cur.map((t) =>
-      t.id === res.from.id ? res.from : t.id === res.to.id ? res.to : t,
-    );
+    cur = cur.map((t) => (t.id === res.from.id ? res.from : t.id === res.to.id ? res.to : t));
   }
   return cur;
 }
@@ -55,9 +53,7 @@ describe('solver', () => {
       const to = cur.find((t) => t.id === m.to)!;
       const res = pour(from, to);
       expect(res).not.toBeNull();
-      cur = cur.map((t) =>
-        t.id === res!.from.id ? res!.from : t.id === res!.to.id ? res!.to : t,
-      );
+      cur = cur.map((t) => (t.id === res!.from.id ? res!.from : t.id === res!.to.id ? res!.to : t));
     }
     expect(isCleared(cur)).toBe(true);
   });
@@ -138,5 +134,52 @@ describe('hasLegalMove (막힘 감지 T142)', () => {
       { id: 1, capacity: 2, layers: [] },
     ];
     expect(hasLegalMove(tubes)).toBe(false);
+  });
+});
+
+describe('cooperative hint search', () => {
+  const puzzle: Tube[] = [
+    { id: 4, capacity: 4, layers: [0, 1, 2, 0] },
+    { id: 7, capacity: 4, layers: [1, 2, 0, 1] },
+    { id: 9, capacity: 4, layers: [2, 0, 1, 2] },
+    { id: 12, capacity: 4, layers: [] },
+    { id: 20, capacity: 4, layers: [] },
+  ];
+
+  test('yields to the next input task before returning a playable hint', async () => {
+    const before = JSON.stringify(puzzle);
+    const input = jest.fn();
+    const pending = findSolutionAsync(puzzle, { batchSize: 1 });
+    setTimeout(input, 0);
+    expect(input).not.toHaveBeenCalled();
+    const solution = await pending;
+    expect(input).toHaveBeenCalledTimes(1);
+    expect(solution).not.toBeNull();
+    expect(isCleared(replay(puzzle, solution))).toBe(true);
+    expect(JSON.stringify(puzzle)).toBe(before);
+  });
+
+  test('abort during a search stops further chunks without delivering a stale hint', async () => {
+    const controller = new AbortController();
+    const pending = findSolutionAsync(puzzle, { signal: controller.signal, batchSize: 1 });
+    setTimeout(() => controller.abort(), 0);
+    expect(await pending).toBeNull();
+  });
+
+  test('already cancelled searches stop immediately and zero budget is respected', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    expect(await findSolutionAsync(puzzle, { signal: controller.signal })).toBeNull();
+    expect(await findSolutionAsync(puzzle, { maxStates: 0 })).toBeNull();
+  });
+
+  test('empty-tube pruning respects different capacities', () => {
+    const tubes: Tube[] = [
+      { id: 0, capacity: 4, layers: [0, 0] },
+      { id: 1, capacity: 2, layers: [] },
+    ];
+    const solution = findSolution(tubes);
+    expect(solution).not.toBeNull();
+    expect(isCleared(replay(tubes, solution))).toBe(true);
   });
 });

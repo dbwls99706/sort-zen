@@ -1,13 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  withTiming,
-} from 'react-native-reanimated';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useTheme } from '../../src/components/ThemeProvider';
 import { SoundManager } from '../../src/audio/SoundManager';
 import { type AsmrMaterial } from '../../src/audio/asmrPools';
@@ -18,6 +12,7 @@ import {
   type BlobShape,
 } from '../../src/components/asmr/SoftBodyBlob';
 import { MaterialEffects } from '../../src/components/asmr/MaterialEffects';
+import { AsmrParticles, type AsmrParticlesHandle } from '../../src/components/asmr/AsmrParticles';
 import { useSettingsStore } from '../../src/store/settingsStore';
 import { useTranslation } from '../../src/i18n';
 
@@ -36,12 +31,12 @@ type ASMRMaterial = {
   blobShape: BlobShape;
   particleSpeed: number;
   particleGravity: number;
-  screenShakeFactor: number;
   particleShape: 'circle' | 'cloud' | 'square' | 'droplet';
 };
 
-const BLOB_SIZE = 320;
-const PARTICLE_FRAME_MS = 32;
+const MAX_BLOB_SIZE = 360;
+const FEEDBACK_INTERVAL_MS = 118;
+const IMPACT_INTERVAL_MS = 175;
 
 const MATERIALS: ASMRMaterial[] = [
   {
@@ -65,7 +60,6 @@ const MATERIALS: ASMRMaterial[] = [
     },
     particleSpeed: 3.5,
     particleGravity: 0.1,
-    screenShakeFactor: 0.15,
     particleShape: 'circle',
   },
   {
@@ -89,7 +83,6 @@ const MATERIALS: ASMRMaterial[] = [
     },
     particleSpeed: 1.8,
     particleGravity: 0.05,
-    screenShakeFactor: 0.08,
     particleShape: 'cloud',
   },
   {
@@ -113,7 +106,6 @@ const MATERIALS: ASMRMaterial[] = [
     },
     particleSpeed: 4.5,
     particleGravity: 0.16,
-    screenShakeFactor: 0.26,
     particleShape: 'droplet',
   },
   {
@@ -137,7 +129,6 @@ const MATERIALS: ASMRMaterial[] = [
     },
     particleSpeed: 7,
     particleGravity: 0.32,
-    screenShakeFactor: 0.32,
     particleShape: 'square',
   },
   {
@@ -161,412 +152,271 @@ const MATERIALS: ASMRMaterial[] = [
     },
     particleSpeed: 10.5,
     particleGravity: 0.45,
-    screenShakeFactor: 0.42,
     particleShape: 'droplet',
   },
 ];
-
-type Particle = {
-  id: number;
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  color: string;
-  size: number;
-  opacity: number;
-  shape: 'circle' | 'cloud' | 'square' | 'droplet';
-};
-
-function rand(): number {
-  return Math.random();
-}
-
-function nowMs(): number {
-  return Date.now();
-}
 
 export default function ASMRSensoryScreen() {
   const router = useRouter();
   const theme = useTheme();
   const { t } = useTranslation();
   const language = useSettingsStore((state) => state.language);
+  const [activeMaterial, setActiveMaterial] = useState(MATERIALS[0]);
+  const [blobSize, setBlobSize] = useState(MAX_BLOB_SIZE);
+  const [focused, setFocused] = useState(false);
+  const [appActive, setAppActive] = useState(AppState.currentState === 'active');
+  const active = focused && appActive;
+  const activeRef = useRef(active);
+  activeRef.current = active;
+  const materialRef = useRef(activeMaterial);
+  materialRef.current = activeMaterial;
+  const particles = useRef<AsmrParticlesHandle>(null);
+  const squeezing = useRef(false);
+  const lastFeedback = useRef(0);
+  const lastImpact = useRef(0);
 
-  const [activeMaterial, setActiveMaterial] = useState<ASMRMaterial>(
-    MATERIALS[0],
+  const stopInteraction = useCallback(() => {
+    squeezing.current = false;
+    SoundManager.stopLoop();
+    SoundManager.setBgmDucked(false);
+    particles.current?.clear();
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      setFocused(true);
+      return () => {
+        activeRef.current = false;
+        setFocused(false);
+        stopInteraction();
+        SoundManager.stopBGM();
+      };
+    }, [stopInteraction]),
   );
-  const [particles, setParticles] = useState<Particle[]>([]);
-  const activeMaterialRef = useRef(activeMaterial);
-  const particlesRef = useRef<Particle[]>([]);
-  const particleIdRef = useRef(0);
-  const particleFrameRef = useRef<number | null>(null);
-  const lastParticleFrameRef = useRef(0);
-  const playSpaceRef = useRef<View>(null);
-  const playSpaceOrigin = useRef({ x: 0, y: 0 });
-
-  const screenTranslateX = useSharedValue(0);
-  const screenTranslateY = useSharedValue(0);
-  const screenRotate = useSharedValue(0);
-
-  const lastSoundTime = useRef(0);
-  const lastTapTime = useRef(0);
-  const lastLoopVolTime = useRef(0);
 
   useEffect(() => {
-    activeMaterialRef.current = activeMaterial;
-  }, [activeMaterial]);
-
-  const measurePlaySpace = useCallback(() => {
-    playSpaceRef.current?.measureInWindow((x, y) => {
-      playSpaceOrigin.current = { x, y };
+    const listener = AppState.addEventListener('change', (state) => {
+      setAppActive(state === 'active');
+      if (state !== 'active') {
+        activeRef.current = false;
+        stopInteraction();
+        SoundManager.stopBGM();
+      }
     });
+    return () => listener.remove();
+  }, [stopInteraction]);
+
+  useEffect(() => {
+    if (active) SoundManager.playBGM('zen');
+    // Blur/background handlers stop audio immediately. A later state-effect
+    // cleanup could otherwise stop music just started by the next screen.
+  }, [active]);
+
+  useEffect(() => {
+    if (active) SoundManager.preloadAsmr(activeMaterial.material);
+  }, [active, activeMaterial.material]);
+
+  const spawnParticles = useCallback((x: number, y: number, count: number) => {
+    const material = materialRef.current;
+    particles.current?.spawn(
+      x,
+      y,
+      {
+        colors: material.particleColors,
+        speed: material.particleSpeed,
+        gravity: material.particleGravity,
+        shape: material.particleShape,
+      },
+      count,
+    );
   }, []);
-
-  const startParticleLoop = useCallback(() => {
-    if (particleFrameRef.current !== null) return;
-    lastParticleFrameRef.current = 0;
-
-    const update = (timestamp: number) => {
-      if (
-        lastParticleFrameRef.current > 0 &&
-        timestamp - lastParticleFrameRef.current < PARTICLE_FRAME_MS
-      ) {
-        particleFrameRef.current = requestAnimationFrame(update);
-        return;
-      }
-      lastParticleFrameRef.current = timestamp;
-
-      const gravity = activeMaterialRef.current.particleGravity;
-      const next = particlesRef.current
-        .map((particle) => ({
-          ...particle,
-          x: particle.x + particle.vx,
-          y: particle.y + particle.vy,
-          vy: particle.vy + gravity * 1.7,
-          opacity: Math.max(0, particle.opacity - 0.038),
-        }))
-        .filter((particle) => particle.opacity > 0);
-
-      particlesRef.current = next;
-      setParticles(next);
-      if (next.length === 0) {
-        particleFrameRef.current = null;
-        return;
-      }
-      particleFrameRef.current = requestAnimationFrame(update);
-    };
-
-    particleFrameRef.current = requestAnimationFrame(update);
-  }, []);
-
-  const spawnParticles = useCallback(
-    (absoluteX: number, absoluteY: number, count = 3) => {
-      const material = activeMaterialRef.current;
-      const localX = absoluteX - playSpaceOrigin.current.x;
-      const localY = absoluteY - playSpaceOrigin.current.y;
-      const newParticles: Particle[] = [];
-
-      for (let index = 0; index < count; index++) {
-        const angle = rand() * Math.PI * 2;
-        const speed =
-          (rand() * 4 + 2.5) * material.particleSpeed * 0.45;
-        newParticles.push({
-          id: particleIdRef.current++,
-          x: localX,
-          y: localY,
-          vx: Math.cos(angle) * speed,
-          vy:
-            Math.sin(angle) * speed -
-            (material.material === 'water' ? 4.8 : 2.2),
-          color:
-            material.particleColors[
-              Math.floor(rand() * material.particleColors.length)
-            ],
-          size: rand() * 9 + 6,
-          opacity: 1,
-          shape: material.particleShape,
-        });
-      }
-
-      const limit = material.material === 'water' ? 64 : 42;
-      const next = [...particlesRef.current, ...newParticles].slice(-limit);
-      particlesRef.current = next;
-      setParticles(next);
-      startParticleLoop();
-    },
-    [startParticleLoop],
-  );
 
   const handleSqueezeStart = useCallback(
     (x: number, y: number) => {
-      const material = activeMaterialRef.current;
+      if (!activeRef.current) return;
+      const material = materialRef.current;
+      squeezing.current = true;
+      lastFeedback.current = Date.now();
+      lastImpact.current = lastFeedback.current;
       SoundManager.setBgmDucked(true);
       SoundManager.startLoop(material.material, 0.46);
       SoundManager.playImpact(material.material);
-      lastTapTime.current = nowMs();
       if (material.material === 'sponge') Haptic.heavy();
       else Haptic.medium();
-
-      screenTranslateX.value = withTiming(
-        (rand() - 0.5) * 25 * material.screenShakeFactor,
-        { duration: 60 },
-      );
-      screenTranslateY.value = withTiming(
-        (rand() - 0.5) * 25 * material.screenShakeFactor,
-        { duration: 60 },
-      );
-      screenRotate.value = withTiming(
-        (rand() - 0.5) * 0.08 * material.screenShakeFactor,
-        { duration: 60 },
-      );
-
-      spawnParticles(x, y, material.material === 'water' ? 16 : 6);
+      spawnParticles(x, y, material.material === 'water' ? 8 : 4);
     },
-    [spawnParticles, screenTranslateX, screenTranslateY, screenRotate],
+    [spawnParticles],
   );
 
   const handleSqueezeMove = useCallback(
     (x: number, y: number, speed: number) => {
-      const material = activeMaterialRef.current;
-      const shake = Math.min(1, speed / 18);
-      screenTranslateX.value = withTiming(
-        (rand() - 0.5) * 20 * material.screenShakeFactor * shake,
-        { duration: 50 },
-      );
-      screenTranslateY.value = withTiming(
-        (rand() - 0.5) * 20 * material.screenShakeFactor * shake,
-        { duration: 50 },
-      );
-      screenRotate.value = withTiming(
-        (rand() - 0.5) * 0.055 * material.screenShakeFactor * shake,
-        { duration: 50 },
-      );
-
-      const now = nowMs();
-      if (now - lastLoopVolTime.current > 55) {
-        SoundManager.setLoopVolume(0.28 + Math.min(0.62, speed / 24));
-        lastLoopVolTime.current = now;
-      }
-
-      const throttleTime = material.material === 'water' ? 72 : 118;
-      if (speed > 1.5 && now - lastSoundTime.current > throttleTime) {
+      if (!activeRef.current || !squeezing.current) return;
+      const material = materialRef.current;
+      const now = Date.now();
+      SoundManager.setLoopVolume(0.28 + Math.min(0.62, speed / 24));
+      if (speed > 1.5 && now - lastFeedback.current > FEEDBACK_INTERVAL_MS) {
         Haptic.light();
-        const base = material.material === 'water' ? 5 : 2;
-        spawnParticles(
-          x,
-          y,
-          base + Math.min(7, Math.round(speed * 0.52)),
-        );
-        lastSoundTime.current = now;
+        spawnParticles(x, y, material.material === 'water' ? 4 : 2);
+        lastFeedback.current = now;
       }
-
-      if (speed > 9 && now - lastTapTime.current > 175) {
+      if (speed > 9 && now - lastImpact.current > IMPACT_INTERVAL_MS) {
         SoundManager.playImpact(material.material, 0.82);
-        lastTapTime.current = now;
+        lastImpact.current = now;
       }
     },
-    [spawnParticles, screenTranslateX, screenTranslateY, screenRotate],
+    [spawnParticles],
   );
 
   const handleRelease = useCallback(() => {
-    const material = activeMaterialRef.current;
+    const wasSqueezing = squeezing.current;
+    squeezing.current = false;
     SoundManager.stopLoop();
     SoundManager.setBgmDucked(false);
-    SoundManager.playImpact(material.material, 0.24);
-    screenTranslateX.value = withSpring(0, { damping: 12, stiffness: 90 });
-    screenTranslateY.value = withSpring(0, { damping: 12, stiffness: 90 });
-    screenRotate.value = withSpring(0, { damping: 12, stiffness: 90 });
-  }, [screenTranslateX, screenTranslateY, screenRotate]);
-
-  useEffect(() => {
-    SoundManager.playBGM('zen');
-    SoundManager.preloadAsmr();
-    return () => {
-      if (particleFrameRef.current !== null) {
-        cancelAnimationFrame(particleFrameRef.current);
-        particleFrameRef.current = null;
-      }
-      SoundManager.setBgmDucked(false);
-      SoundManager.stopLoop();
-      SoundManager.stopBGM();
-    };
+    if (wasSqueezing && activeRef.current) {
+      SoundManager.playImpact(materialRef.current.material, 0.24);
+    }
   }, []);
 
-  const animatedScreenStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: screenTranslateX.value },
-      { translateY: screenTranslateY.value },
-      { rotate: `${screenRotate.value}rad` },
-    ],
-  }));
-
-  const bgAura1Style = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: screenTranslateX.value * -0.6 },
-      { translateY: screenTranslateY.value * -0.6 },
-    ],
-  }));
-
-  const bgAura2Style = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: screenTranslateX.value * -0.3 },
-      { translateY: screenTranslateY.value * -0.3 },
-    ],
-  }));
-
   const selectMaterial = (material: ASMRMaterial) => {
-    SoundManager.stopLoop();
-    SoundManager.setBgmDucked(false);
+    if (material.id === materialRef.current.id) return;
+    stopInteraction();
+    materialRef.current = material;
+    setActiveMaterial(material);
     SoundManager.play('button_tap');
     Haptic.light();
-    particlesRef.current = [];
-    setParticles([]);
-    setActiveMaterial(material);
     SoundManager.playImpact(material.material, 0.58);
   };
 
-  const materialName =
-    language === 'ko' ? activeMaterial.nameKo : activeMaterial.name;
-  const materialDescription =
-    language === 'ko' ? activeMaterial.descKo : activeMaterial.descEn;
+  const materialName = language === 'ko' ? activeMaterial.nameKo : activeMaterial.name;
+  const materialDescription = language === 'ko' ? activeMaterial.descKo : activeMaterial.descEn;
 
   return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: theme.background }]}
-    >
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <View style={styles.header}>
         <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('menu')}
           style={({ pressed }) => [
             styles.backButton,
-            { backgroundColor: theme.surface },
-            pressed && styles.pressed,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.border,
+              opacity: pressed ? 0.65 : 1,
+            },
           ]}
           onPress={() => {
+            activeRef.current = false;
+            stopInteraction();
             SoundManager.play('button_tap');
             Haptic.light();
             router.back();
           }}
         >
-          <Text style={[styles.backText, { color: theme.text }]}>←</Text>
+          <Text style={[styles.backText, { color: theme.text }]}>‹</Text>
         </Pressable>
-        <Text style={[styles.title, { color: theme.text }]}> 
-          {t('asmr_room')}
-        </Text>
-        <View style={styles.headerSpacer} />
+        <Text style={[styles.title, { color: theme.textSecondary }]}>{t('asmr_room')}</Text>
+        <View style={[styles.soundBadge, { backgroundColor: theme.accentSoft }]}>
+          <Text style={[styles.soundIcon, { color: theme.accent }]}>♫</Text>
+        </View>
       </View>
 
-      <Animated.View style={[styles.shakingContainer, animatedScreenStyle]}>
-        <Animated.View
-          style={[
-            styles.bgAura1,
-            bgAura1Style,
-            { backgroundColor: activeMaterial.colors[0] },
-          ]}
-        />
-        <Animated.View
-          style={[
-            styles.bgAura2,
-            bgAura2Style,
-            { backgroundColor: activeMaterial.colors[1] },
-          ]}
-        />
+      <View style={styles.descriptionArea}>
+        <Text style={[styles.kicker, { color: theme.accent }]}>ASMR</Text>
+        <Text style={[styles.descTitle, { color: theme.text }]}>{materialName}</Text>
+        <Text style={[styles.descSub, { color: theme.textSecondary }]}>{materialDescription}</Text>
+      </View>
 
-        <View style={styles.descriptionArea}>
-          <Text style={[styles.descTitle, { color: theme.text }]}> 
-            {materialName}
-          </Text>
-          <Text style={[styles.descSub, { color: theme.textSecondary }]}> 
-            {materialDescription}
-          </Text>
-        </View>
-
-        <View
-          ref={playSpaceRef}
-          style={styles.playSpace}
-          onLayout={measurePlaySpace}
-        >
-          {particles.map((particle) => {
-            let borderRadius = particle.size / 2;
-            let width = particle.size;
-            let height = particle.size;
-
-            if (particle.shape === 'square') {
-              borderRadius = 2;
-            } else if (particle.shape === 'cloud') {
-              borderRadius = particle.size / 3;
-            } else if (particle.shape === 'droplet') {
-              width = particle.size * 0.75;
-              height = particle.size * 1.35;
-              borderRadius = particle.size / 2;
-            }
-
-            return (
-              <View
-                key={particle.id}
-                style={[
-                  styles.particle,
-                  {
-                    left: particle.x - width / 2,
-                    top: particle.y - height / 2,
-                    width,
-                    height,
-                    borderRadius,
-                    backgroundColor: particle.color,
-                    opacity: particle.opacity,
-                  },
-                ]}
-              />
-            );
-          })}
-
+      <View
+        style={styles.playSpace}
+        onLayout={({ nativeEvent: { layout } }) => {
+          const next = Math.floor(
+            Math.max(1, Math.min(MAX_BLOB_SIZE, layout.width, layout.height)),
+          );
+          setBlobSize((current) => (current === next ? current : next));
+        }}
+      >
+        <View style={{ width: blobSize, height: blobSize }}>
+          <View
+            pointerEvents="none"
+            style={[
+              styles.aura,
+              {
+                backgroundColor: activeMaterial.colors[0],
+                width: blobSize * 0.84,
+                height: blobSize * 0.84,
+                borderRadius: blobSize,
+                left: blobSize * 0.08,
+                top: blobSize * 0.08,
+              },
+            ]}
+          />
           <SoftBodyBlob
-            size={BLOB_SIZE}
+            key={activeMaterial.id}
+            size={blobSize}
             outerColor={activeMaterial.colors[0]}
             innerColor={activeMaterial.colors[1]}
             physics={activeMaterial.blob}
             shape={activeMaterial.blobShape}
             resetKey={activeMaterial.id}
+            enabled={active}
+            accessibilityLabel={`${materialName}. ${materialDescription}`}
             onSqueezeStart={handleSqueezeStart}
             onSqueezeMove={handleSqueezeMove}
             onRelease={handleRelease}
           />
           <MaterialEffects
             material={activeMaterial.material}
-            size={BLOB_SIZE}
+            size={blobSize}
             primary={activeMaterial.colors[0]}
             secondary={activeMaterial.colors[1]}
+            active={active}
           />
+          <AsmrParticles ref={particles} />
         </View>
-      </Animated.View>
+      </View>
 
-      <View style={styles.selectorContainer}>
+      <View
+        style={[
+          styles.selectorContainer,
+          { backgroundColor: theme.surface, borderColor: theme.border },
+        ]}
+      >
         {MATERIALS.map((material) => {
-          const isActive = material.id === activeMaterial.id;
-          const label =
-            language === 'ko' ? material.labelKo : material.labelEn;
+          const selected = material.id === activeMaterial.id;
+          const label = language === 'ko' ? material.labelKo : material.labelEn;
           return (
             <Pressable
               key={material.id}
+              accessibilityRole="button"
+              accessibilityLabel={language === 'ko' ? material.nameKo : material.name}
+              accessibilityState={{ selected }}
               style={({ pressed }) => [
                 styles.selectorItem,
                 {
-                  backgroundColor: isActive ? theme.accent : theme.surface,
-                  borderColor: isActive ? theme.accent : 'transparent',
+                  backgroundColor: selected ? theme.accentSoft : 'transparent',
+                  borderColor: selected ? theme.accent : 'transparent',
+                  opacity: pressed ? 0.65 : 1,
                 },
-                pressed && styles.selectorPressed,
               ]}
               onPress={() => selectMaterial(material)}
             >
               <View
                 style={[
                   styles.selectorDot,
-                  { backgroundColor: material.colors[0] },
+                  {
+                    backgroundColor: material.colors[0],
+                    borderColor: selected ? theme.accent : theme.border,
+                  },
                 ]}
               />
               <Text
+                numberOfLines={1}
+                adjustsFontSizeToFit
                 style={[
                   styles.selectorText,
-                  { color: isActive ? '#FFFFFF' : theme.text },
+                  {
+                    color: selected ? theme.accent : theme.textSecondary,
+                  },
                 ]}
               >
                 {label}
@@ -580,123 +430,76 @@ export default function ASMRSensoryScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+  container: { flex: 1 },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    zIndex: 10,
-  },
-  headerSpacer: {
-    width: 40,
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 10,
+    gap: 12,
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 18,
+    borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  backText: {
-    fontSize: 20,
-    fontWeight: 'bold',
+  backText: { fontSize: 34, lineHeight: 37 },
+  title: { fontSize: 13, fontWeight: '600', flex: 1, textAlign: 'center' },
+  soundBadge: {
+    width: 48,
+    height: 48,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  shakingContainer: {
-    flex: 1,
-    position: 'relative',
-  },
+  soundIcon: { fontSize: 22 },
   descriptionArea: {
     alignItems: 'center',
-    marginVertical: 12,
-    paddingHorizontal: 24,
+    paddingHorizontal: 28,
+    paddingTop: 14,
+    paddingBottom: 4,
   },
+  kicker: { fontSize: 11, fontWeight: '700', letterSpacing: 3, marginBottom: 10 },
   descTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginBottom: 6,
-  },
-  descSub: {
-    fontSize: 14,
+    fontSize: 28,
+    fontWeight: '700',
+    letterSpacing: -0.7,
+    marginBottom: 10,
     textAlign: 'center',
-    lineHeight: 20,
   },
+  descSub: { fontSize: 13, textAlign: 'center', lineHeight: 21, maxWidth: 300 },
   playSpace: {
     flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
-    position: 'relative',
+    justifyContent: 'center',
+    marginHorizontal: 16,
+    overflow: 'hidden',
   },
-  particle: {
-    position: 'absolute',
-    zIndex: 10,
-    pointerEvents: 'none',
-  },
+  aura: { position: 'absolute', opacity: 0.08 },
   selectorContainer: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    flexWrap: 'wrap',
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingBottom: 24,
-    zIndex: 10,
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 16,
+    padding: 7,
+    gap: 3,
+    borderRadius: 24,
+    borderWidth: 1,
   },
   selectorItem: {
-    flexDirection: 'row',
+    flex: 1,
+    minHeight: 76,
     alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 20,
+    justifyContent: 'center',
+    padding: 5,
+    borderRadius: 18,
     borderWidth: 1,
-    elevation: 2,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
   },
-  selectorDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: 8,
-  },
-  selectorText: {
-    fontSize: 13,
-    fontWeight: 'bold',
-  },
-  bgAura1: {
-    position: 'absolute',
-    top: '12%',
-    left: '8%',
-    width: 320,
-    height: 320,
-    borderRadius: 160,
-    opacity: 0.12,
-    pointerEvents: 'none',
-  },
-  bgAura2: {
-    position: 'absolute',
-    bottom: '12%',
-    right: '8%',
-    width: 360,
-    height: 360,
-    borderRadius: 180,
-    opacity: 0.08,
-    pointerEvents: 'none',
-  },
-  pressed: {
-    transform: [{ scale: 0.94 }],
-    opacity: 0.72,
-  },
-  selectorPressed: {
-    transform: [{ scale: 0.96 }],
-    opacity: 0.82,
-  },
+  selectorDot: { width: 27, height: 27, borderRadius: 11, borderWidth: 1, marginBottom: 8 },
+  selectorText: { fontSize: 11, fontWeight: '600' },
 });

@@ -27,6 +27,8 @@ const POUR_CHAIN_SHIFT_MAX = 2;
 const ASMR_FADE_IN_MS = 110;
 const ASMR_FADE_OUT_MS = 150;
 const ASMR_BGM_DUCK = 0.48;
+const LOOP_VOLUME_INTERVAL_MS = 50;
+const LOOP_VOLUME_MIN_CHANGE = 0.02;
 
 function effectVolume(): number {
   const { masterVolume, sfxVolume } = useSettingsStore.getState();
@@ -79,14 +81,23 @@ class SoundManagerClass {
   private bgm: Audio.Sound | null = null;
   private bgmDuck = 1;
   private bgmFadeToken = 0;
+  private bgmToken = 0;
   private loaded = false;
+  private generation = 0;
+  private preloadTask: Promise<void> | null = null;
+  private asmrPreloadToken = 0;
 
   private loopSound: Audio.Sound | null = null;
   private loopToken = 0;
   private loopTargetVolume = 0;
   private loopGain = 0;
+  private loopVolumeTimer: ReturnType<typeof setTimeout> | null = null;
+  private loopVolumeTask: Promise<void> | null = null;
+  private lastLoopVolume = -1;
   private asmrSounds: Map<number, Audio.Sound> = new Map();
   private loopSounds: Map<number, Audio.Sound> = new Map();
+  private asmrLoads = new Map<number, Promise<Audio.Sound | null>>();
+  private loopLoads = new Map<number, Promise<Audio.Sound | null>>();
   private lastPick: Map<string, number> = new Map();
 
   private currentBgmVolume(): number {
@@ -142,20 +153,41 @@ class SoundManagerClass {
 
   async preload(): Promise<void> {
     if (this.loaded) return;
-
-    await Audio.setAudioModeAsync({
-      playsInSilentModeIOS: true,
-      shouldDuckAndroid: true,
-      staysActiveInBackground: false,
-    });
-
-    for (const [key, asset] of Object.entries(SOUND_ASSETS)) {
-      const { sound } = await Audio.Sound.createAsync(asset, {
-        volume: effectVolume(),
-      });
-      this.sounds.set(key as SoundKey, sound);
+    if (this.preloadTask) return this.preloadTask;
+    const generation = this.generation;
+    const task = this.loadEffects(generation);
+    this.preloadTask = task;
+    try {
+      await task;
+    } finally {
+      if (this.preloadTask === task) this.preloadTask = null;
     }
-    this.loaded = true;
+  }
+
+  private async loadEffects(generation: number): Promise<void> {
+    try {
+      await Audio.setAudioModeAsync({
+        playsInSilentModeIOS: true,
+        shouldDuckAndroid: true,
+        staysActiveInBackground: false,
+      });
+
+      for (const [key, asset] of Object.entries(SOUND_ASSETS)) {
+        if (generation !== this.generation) return;
+        if (this.sounds.has(key as SoundKey)) continue;
+        const { sound } = await Audio.Sound.createAsync(asset, {
+          volume: effectVolume(),
+        });
+        if (generation !== this.generation) {
+          await sound.unloadAsync().catch(() => undefined);
+          return;
+        }
+        this.sounds.set(key as SoundKey, sound);
+      }
+      this.loaded = true;
+    } catch (error) {
+      console.warn('Failed to preload sound effects', error);
+    }
   }
 
   async play(key: SoundKey): Promise<void> {
@@ -177,14 +209,40 @@ class SoundManagerClass {
     return pool[index];
   }
 
-  private async getAsmrSound(asset: number): Promise<Audio.Sound | null> {
-    const cached = this.asmrSounds.get(asset);
+  private getCachedSound(asset: number, looping: boolean): Promise<Audio.Sound | null> {
+    const cache = looping ? this.loopSounds : this.asmrSounds;
+    const pending = looping ? this.loopLoads : this.asmrLoads;
+    const cached = cache.get(asset);
+    if (cached) return Promise.resolve(cached);
+    const loading = pending.get(asset);
+    if (loading) return loading;
+    const generation = this.generation;
+    const task = this.loadAsmrSound(asset, looping, generation).finally(() => {
+      if (pending.get(asset) === task) pending.delete(asset);
+    });
+    pending.set(asset, task);
+    return task;
+  }
+
+  private async loadAsmrSound(
+    asset: number,
+    looping: boolean,
+    generation: number,
+  ): Promise<Audio.Sound | null> {
+    const cache = looping ? this.loopSounds : this.asmrSounds;
+    const cached = cache.get(asset);
     if (cached) return cached;
     try {
       const { sound } = await Audio.Sound.createAsync(asset, {
-        volume: effectVolume(),
+        isLooping: looping,
+        shouldPlay: false,
+        volume: looping ? 0 : effectVolume(),
       });
-      this.asmrSounds.set(asset, sound);
+      if (generation !== this.generation) {
+        await sound.unloadAsync().catch(() => undefined);
+        return null;
+      }
+      cache.set(asset, sound);
       return sound;
     } catch (error) {
       console.warn('Failed to load ASMR sound', error);
@@ -192,48 +250,32 @@ class SoundManagerClass {
     }
   }
 
-  private async getLoopSound(asset: number): Promise<Audio.Sound | null> {
-    const cached = this.loopSounds.get(asset);
-    if (cached) return cached;
-    try {
-      const { sound } = await Audio.Sound.createAsync(asset, {
-        isLooping: true,
-        shouldPlay: false,
-        volume: 0,
-      });
-      this.loopSounds.set(asset, sound);
-      return sound;
-    } catch (error) {
-      console.warn('Failed to load ASMR loop', error);
-      return null;
+  async preloadAsmr(material: AsmrMaterial = 'slime'): Promise<void> {
+    const token = ++this.asmrPreloadToken;
+    const generation = this.generation;
+    const pool = ASMR_POOLS[material];
+    // 재질 하나씩 준비하고 루프를 먼저 로드해 첫 접촉 지연을 줄인다.
+    for (const looping of [true, false]) {
+      for (const asset of new Set(looping ? pool.loops : pool.impacts)) {
+        if (token !== this.asmrPreloadToken || generation !== this.generation) return;
+        await this.getCachedSound(asset, looping);
+      }
     }
-  }
-
-  async preloadAsmr(): Promise<void> {
-    const impacts = new Set<number>();
-    const loops = new Set<number>();
-    for (const material of Object.keys(ASMR_POOLS) as AsmrMaterial[]) {
-      for (const asset of ASMR_POOLS[material].impacts) impacts.add(asset);
-      for (const asset of ASMR_POOLS[material].loops) loops.add(asset);
-    }
-    await Promise.all([
-      ...[...impacts].map((asset) =>
-        this.getAsmrSound(asset).then(() => undefined),
-      ),
-      ...[...loops].map((asset) =>
-        this.getLoopSound(asset).then(() => undefined),
-      ),
-    ]);
   }
 
   async playImpact(material: AsmrMaterial, gain = 1): Promise<void> {
     if (!useSettingsStore.getState().soundEnabled) return;
-    const asset = this.pickFromPool(
-      ASMR_POOLS[material].impacts,
-      `${material}_imp`,
-    );
-    const sound = await this.getAsmrSound(asset);
-    if (!sound) return;
+    const asset = this.pickFromPool(ASMR_POOLS[material].impacts, `${material}_imp`);
+    const generation = this.generation;
+    const interaction = this.loopToken;
+    const sound = await this.getCachedSound(asset, false);
+    if (
+      !sound ||
+      generation !== this.generation ||
+      interaction !== this.loopToken ||
+      !useSettingsStore.getState().soundEnabled
+    )
+      return;
     try {
       await sound.replayAsync({
         volume: clamp01(effectVolume() * gain),
@@ -247,32 +289,29 @@ class SoundManagerClass {
   async startLoop(material: AsmrMaterial, volume = 1): Promise<void> {
     if (!useSettingsStore.getState().soundEnabled) return;
     const token = ++this.loopToken;
+    this.cancelLoopVolumeUpdate();
     this.loopGain = clamp01(volume);
     const targetVolume = clamp01(effectVolume() * this.loopGain);
-    const asset = this.pickFromPool(
-      ASMR_POOLS[material].loops,
-      `${material}_loop`,
-    );
-    const sound = await this.getLoopSound(asset);
+    const asset = this.pickFromPool(ASMR_POOLS[material].loops, `${material}_loop`);
+    const sound = await this.getCachedSound(asset, true);
     if (token !== this.loopToken || !sound) return;
-
-    const previous = this.loopSound;
-    this.loopSound = sound;
-    this.loopTargetVolume = targetVolume;
 
     let positionMillis = 0;
     let currentVolume = 0;
     try {
       const status = await sound.getStatusAsync();
       if (status.isLoaded) {
-        currentVolume =
-          typeof status.volume === 'number' ? status.volume : 0;
+        currentVolume = typeof status.volume === 'number' ? status.volume : 0;
         if (status.durationMillis && status.durationMillis > 300) {
-          positionMillis = Math.floor(
-            Math.random() * (status.durationMillis - 200),
-          );
+          positionMillis = Math.floor(Math.random() * (status.durationMillis - 200));
         }
       }
+      if (token !== this.loopToken || !useSettingsStore.getState().soundEnabled) return;
+      const previous = this.loopSound;
+      this.loopSound = sound;
+      this.loopTargetVolume = targetVolume;
+      this.lastLoopVolume = targetVolume;
+      if (previous && previous !== sound) void this.fadeOutDetached(previous);
       await sound.setStatusAsync({
         shouldPlay: true,
         isLooping: true,
@@ -283,22 +322,49 @@ class SoundManagerClass {
       return;
     }
 
-    if (previous && previous !== sound) void this.fadeOutDetached(previous);
     await this.fadeSound(
       sound,
       Math.min(currentVolume, targetVolume),
       targetVolume,
       ASMR_FADE_IN_MS,
-      () => token === this.loopToken && this.loopSound === sound,
+      () =>
+        token === this.loopToken &&
+        this.loopSound === sound &&
+        this.loopTargetVolume === targetVolume,
     );
   }
 
   async setLoopVolume(volume: number): Promise<void> {
+    if (!this.loopSound) return;
+    this.loopGain = clamp01(volume);
+    this.loopTargetVolume = clamp01(effectVolume() * this.loopGain);
+    this.scheduleLoopVolumeUpdate();
+  }
+
+  private cancelLoopVolumeUpdate(): void {
+    if (this.loopVolumeTimer) clearTimeout(this.loopVolumeTimer);
+    this.loopVolumeTimer = null;
+  }
+
+  private scheduleLoopVolumeUpdate(): void {
+    if (!this.loopSound || this.loopVolumeTimer || this.loopVolumeTask) return;
+    if (Math.abs(this.loopTargetVolume - this.lastLoopVolume) < LOOP_VOLUME_MIN_CHANGE) return;
+    this.loopVolumeTimer = setTimeout(() => {
+      this.loopVolumeTimer = null;
+      const task = this.flushLoopVolume();
+      this.loopVolumeTask = task;
+      void task.finally(() => {
+        if (this.loopVolumeTask === task) this.loopVolumeTask = null;
+        this.scheduleLoopVolumeUpdate();
+      });
+    }, LOOP_VOLUME_INTERVAL_MS);
+  }
+
+  private async flushLoopVolume(): Promise<void> {
     const sound = this.loopSound;
     if (!sound) return;
-    this.loopGain = clamp01(volume);
-    const target = clamp01(effectVolume() * this.loopGain);
-    this.loopTargetVolume = target;
+    const target = this.loopTargetVolume;
+    this.lastLoopVolume = target;
     try {
       await sound.setVolumeAsync(target);
     } catch {
@@ -309,6 +375,7 @@ class SoundManagerClass {
   /** 손을 떼면 즉시 자르지 않고 짧은 꼬리를 남긴 뒤 일시정지한다. */
   async stopLoop(): Promise<void> {
     this.loopToken += 1;
+    this.cancelLoopVolumeUpdate();
     const sound = this.loopSound;
     this.loopSound = null;
     this.loopTargetVolume = 0;
@@ -352,17 +419,11 @@ class SoundManagerClass {
     ]);
     if (this.loopSound) {
       this.loopTargetVolume = clamp01(volume * this.loopGain);
-      await this.loopSound
-        .setVolumeAsync(this.loopTargetVolume)
-        .catch(() => undefined);
+      await this.loopSound.setVolumeAsync(this.loopTargetVolume).catch(() => undefined);
     }
   }
 
-  async playPour(
-    colorId: number,
-    chainCount = 0,
-    layerCount = 1,
-  ): Promise<void> {
+  async playPour(colorId: number, chainCount = 0, layerCount = 1): Promise<void> {
     const chainShift = Math.min(chainCount, POUR_CHAIN_SHIFT_MAX);
     const weightShift = layerCount >= 3 ? 1 : 0;
     const note = Math.min(
@@ -375,15 +436,14 @@ class SoundManagerClass {
   /** 결과 별이 하나씩 등장할 때 서로 다른 고음으로 상승감을 만든다. */
   async playCelebrationNote(index: number, stars: number): Promise<void> {
     const base = stars === 3 ? 8 : 7;
-    const note = Math.min(
-      POUR_NOTE_COUNT - 1,
-      base + Math.max(0, index),
-    );
+    const note = Math.min(POUR_NOTE_COUNT - 1, base + Math.max(0, index));
     await this.play(`pour_${note}` as SoundKey);
   }
 
   async playBGM(track: 'zen' | 'classic'): Promise<void> {
     if (!useSettingsStore.getState().bgmEnabled) return;
+    const token = ++this.bgmToken;
+    this.bgmFadeToken += 1;
 
     if (this.bgm) {
       const previous = this.bgm;
@@ -395,14 +455,26 @@ class SoundManagerClass {
       }
     }
 
+    if (token !== this.bgmToken) return;
+    let created: Audio.Sound | null = null;
     try {
       const { sound } = await Audio.Sound.createAsync(BGM_ASSETS[track], {
         isLooping: true,
+        shouldPlay: false,
         volume: this.currentBgmVolume(),
       });
+      if (token !== this.bgmToken || !useSettingsStore.getState().bgmEnabled) {
+        await sound.unloadAsync().catch(() => undefined);
+        return;
+      }
+      created = sound;
       this.bgm = sound;
       await sound.playAsync();
     } catch (error) {
+      if (created && this.bgm === created) {
+        this.bgm = null;
+        await created.unloadAsync().catch(() => undefined);
+      }
       console.warn('Failed to play BGM', error);
     }
   }
@@ -417,6 +489,7 @@ class SoundManagerClass {
   }
 
   async stopBGM(): Promise<void> {
+    this.bgmToken += 1;
     const sound = this.bgm;
     this.bgm = null;
     this.bgmDuck = 1;
@@ -435,36 +508,33 @@ class SoundManagerClass {
   }
 
   async unloadAll(): Promise<void> {
-    for (const sound of this.sounds.values()) {
-      try {
-        await sound.unloadAsync();
-      } catch {
-        // ignore
-      }
-    }
-    this.sounds.clear();
-
-    for (const sound of this.asmrSounds.values()) {
-      try {
-        await sound.unloadAsync();
-      } catch {
-        // ignore
-      }
-    }
-    this.asmrSounds.clear();
-
-    await this.stopLoop();
-    for (const sound of this.loopSounds.values()) {
-      try {
-        await sound.unloadAsync();
-      } catch {
-        // ignore
-      }
-    }
-    this.loopSounds.clear();
-    this.lastPick.clear();
-    await this.stopBGM();
+    // 먼저 소유권을 끊어 늦게 끝난 로드가 해제된 캐시에 되살아나지 않게 한다.
+    this.generation += 1;
+    this.asmrPreloadToken += 1;
+    this.loopToken += 1;
+    this.cancelLoopVolumeUpdate();
+    this.loopSound = null;
+    this.loopTargetVolume = 0;
+    this.loopGain = 0;
+    this.lastLoopVolume = -1;
     this.loaded = false;
+    this.preloadTask = null;
+    const sounds = new Set([
+      ...this.sounds.values(),
+      ...this.asmrSounds.values(),
+      ...this.loopSounds.values(),
+    ]);
+    this.sounds.clear();
+    this.asmrSounds.clear();
+    this.loopSounds.clear();
+    this.asmrLoads.clear();
+    this.loopLoads.clear();
+    this.lastPick.clear();
+    const stopBgm = this.stopBGM();
+    for (const sound of sounds) {
+      await sound.unloadAsync().catch(() => undefined);
+    }
+    await stopBgm;
   }
 }
 

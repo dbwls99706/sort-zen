@@ -151,3 +151,11 @@
 - [x] T180 Expo SDK 54 업그레이드 — RN 0.81.5/React 19.1/Reanimated 4(+worklets)/Skia 2.2.12 등 번들 버전 정렬, compileSdk·targetSdk 36(Android 16), Kotlin 2.1.20(app.json 구버전 override 제거), withPlayGamesServices gradle 프로퍼티 36/2.1.20 동기화, Reanimated 4에서 제거된 `Animated.SharedValue` 타입 교체, expo-system-ui 추가(userInterfaceStyle 적용). prebuild로 SDK 36 반영 확인
 - [x] T181 결제 라이브러리 교체 — react-native-iap 12.16.4(Billing 7.0.0) 제거 → expo-iap 4.6.0(openiap-google 2.4.1 = Billing 9.1.0). SubscriptionManager를 OpenIAP API(fetchProducts/requestPurchase/displayPrice/purchaseToken)로 마이그레이션, 공개 API·구매 복원·finishTransaction 정책 유지. prebuild로 BILLING 권한·OpenIAP 의존성 주입 확인. 광고 SDK도 SDK 54 호환 16.4.0(GMA 25.4.0)으로 상향
 - [x] T182 창 크기 변화 대응 — Background/ClearModal/Onboarding의 모듈 스코프 `Dimensions.get('window')`를 useWindowDimensions/stretch 레이아웃으로 교체. targetSdk 36부터 600dp+ 화면에서 세로 고정·리사이즈 제한이 무시되어(회전·폴더블·분할 화면) 시작 시 캡처한 크기가 어긋나던 문제(배경 그라데이션/보케 위치, 컨페티 원점, 온보딩 폭) 해결
+
+## 플레이 경험 개선
+
+- [x] 외부 모바일/게임 디자인 기준으로 홈·게임·온보딩·클리어 화면 개편
+- [x] 고정 터치 영역, 연속 탭 대기 처리, revision 기반 이동 확정
+- [x] 붓기 타임라인·물줄기·액체 높이 동기화 및 상시 렌더 작업 제거
+- [x] 보드 생성 상한·비동기 힌트·ASMR UI 물리·오디오 수명 개선
+- [x] 일시정지·재시작 확인·메뉴 재진입·작은 화면 대응

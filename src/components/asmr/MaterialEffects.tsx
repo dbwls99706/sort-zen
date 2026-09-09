@@ -2,6 +2,8 @@ import React, { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, {
   Easing,
+  cancelAnimation,
+  useReducedMotion,
   SharedValue,
   useAnimatedStyle,
   useSharedValue,
@@ -16,6 +18,7 @@ type MaterialEffectsProps = {
   size: number;
   primary: string;
   secondary: string;
+  active?: boolean;
 };
 
 type Dot = { x: number; y: number; size: number; opacity: number };
@@ -100,46 +103,42 @@ export function MaterialEffects({
   size,
   primary,
   secondary,
+  active = true,
 }: MaterialEffectsProps) {
   const clock = useSharedValue(0);
+  const reducedMotion = useReducedMotion();
   React.useEffect(() => {
-    clock.value = withRepeat(
-      withTiming(1, { duration: 3200, easing: Easing.linear }),
-      -1,
-      false,
-    );
-  }, [clock]);
+    if (!active || reducedMotion || material === 'sponge') {
+      cancelAnimation(clock);
+      return;
+    }
+    clock.value = withRepeat(withTiming(1, { duration: 3200, easing: Easing.linear }), -1, false);
+    return () => cancelAnimation(clock);
+  }, [clock, active, reducedMotion, material]);
 
   const dots = useMemo<Dot[]>(
     () =>
-      Array.from(
-        { length: material === 'sponge' ? 18 : 12 },
-        (_, i) => {
-          const angle = prand(i, material.length + 1) * Math.PI * 2;
-          const radius =
-            Math.sqrt(prand(i, material.length + 2)) * size * 0.29;
-          const dotSize =
-            material === 'shaving'
-              ? 9 + prand(i, 7) * 16
-              : material === 'sponge'
-                ? 7 + prand(i, 8) * 12
-                : 5 + prand(i, 9) * 9;
-          return {
-            x: size / 2 + Math.cos(angle) * radius - dotSize / 2,
-            y: size / 2 + Math.sin(angle) * radius - dotSize / 2,
-            size: dotSize,
-            opacity: 0.16 + prand(i, 10) * 0.26,
-          };
-        },
-      ),
+      Array.from({ length: material === 'sponge' ? 18 : 12 }, (_, i) => {
+        const angle = prand(i, material.length + 1) * Math.PI * 2;
+        const radius = Math.sqrt(prand(i, material.length + 2)) * size * 0.29;
+        const dotSize =
+          material === 'shaving'
+            ? 9 + prand(i, 7) * 16
+            : material === 'sponge'
+              ? 7 + prand(i, 8) * 12
+              : 5 + prand(i, 9) * 9;
+        return {
+          x: size / 2 + Math.cos(angle) * radius - dotSize / 2,
+          y: size / 2 + Math.sin(angle) * radius - dotSize / 2,
+          size: dotSize,
+          opacity: 0.16 + prand(i, 10) * 0.26,
+        };
+      }),
     [material, size],
   );
 
   const glossStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: Math.sin(clock.value * Math.PI * 2) * 12 },
-      { rotate: '-18deg' },
-    ],
+    transform: [{ translateX: Math.sin(clock.value * Math.PI * 2) * 12 }, { rotate: '-18deg' }],
     opacity: 0.2 + Math.sin(clock.value * Math.PI * 2) * 0.05,
   }));
 
@@ -166,9 +165,7 @@ export function MaterialEffects({
       )}
 
       {(material === 'slime' || material === 'shaving') &&
-        dots.map((dot, index) => (
-          <FloatingDot key={index} dot={dot} clock={clock} index={index} />
-        ))}
+        dots.map((dot, index) => <FloatingDot key={index} dot={dot} clock={clock} index={index} />)}
 
       {material === 'sponge' &&
         dots.map((dot, index) => (
@@ -183,8 +180,7 @@ export function MaterialEffects({
                 height: dot.size * 0.72,
                 borderRadius: dot.size / 2,
                 opacity: dot.opacity + 0.08,
-                backgroundColor:
-                  index % 2 === 0 ? `${primary}38` : `${secondary}52`,
+                backgroundColor: index % 2 === 0 ? `${primary}38` : `${secondary}52`,
               },
             ]}
           />

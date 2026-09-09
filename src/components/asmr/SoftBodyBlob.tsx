@@ -1,58 +1,30 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { memo, useEffect, useMemo } from 'react';
 import { View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import {
   useSharedValue,
   useDerivedValue,
+  useFrameCallback,
   runOnJS,
 } from 'react-native-reanimated';
+import { Canvas, Path, Skia, RadialGradient, Circle, vec, Group } from '@shopify/react-native-skia';
 import {
-  Canvas,
-  Path,
-  Skia,
-  RadialGradient,
-  Circle,
-  vec,
-  Group,
-} from '@shopify/react-native-skia';
+  buildSim,
+  flattenNodes,
+  stepSimulation,
+  type BlobPhysics,
+  type BlobShape,
+  type Finger,
+} from './blobPhysics';
 
-/**
- * 압력 기반 소프트바디(pressurized soft body) 물리.
- * 닫힌 막(둘레 점) + 막 스프링(표면장력) + 내부 부피 보존(압력) 모델.
- * 손가락은 "고체 원"으로 표면을 밀어 넣어 쭈그러뜨리고(멀티터치 지원),
- * 압력이 그 부피를 옆으로 밀어내 부푼다. (참고: Maciej Matyka, pressurized soft body)
- * - pressure: 부피 보존력. 높을수록 비압축적(물처럼 눌러도 강하게 되밀어 부푼다)
- * - tension:  막 스프링 강성 = 표면장력. 높을수록 둥글고 매끈, 빨리 원형 복원(물)
- * - friction: 속도 유지. 높을수록 오래 출렁(물), 낮을수록 점성있게 곧 멈춤(크림/슬라임)
- */
-export type BlobPhysics = {
-  pressure: number;
-  tension: number;
-  friction: number;
-};
+export type { BlobPhysics, BlobShape } from './blobPhysics';
 
-/** 정지 외형 — 막 rest 길이에 인코딩되어 재질별 실루엣을 유지한다 */
-export type BlobShape = {
-  scale: number;
-  lobes: number;
-  lobeAmp: number;
-  aspectX: number;
-  aspectY: number;
-};
-
-type Node = { x: number; y: number; ox: number; oy: number };
-
-const RING = 28; // 둘레 점 개수 (유체 표현·손가락 충돌 해상)
-const ITER = 6; // 막 스프링 이완 반복 (관통/자기교차 방지)
-const ANCHOR_K = 0.05; // 무게중심을 제자리로 되돌리는 약한 힘
-const FINGER_R_FACTOR = 0.66; // 손끝(고체 원) 반경 = R * 이 값
-const FINGER_PUSH = 0.92; // 손끝 밖으로 표면을 밀어내는 비율 (깊고 또렷한 눌림)
-const MAX_FINGER_DISP = 0.2; // 프레임당 손가락 변위 상한 (R 대비) — 점 관통/곡선 깨짐 방지
-const PRESS_SCALE = 0.02; // 가스압 → 변 법선 힘 스케일
-const MAX_PRESS_MULT = 3; // 가스압 폭주 클램프 (압축 시 발산 방지)
-// 형태 기억: 압력 모델은 둘레를 원으로 둥글리려 하므로, 정점을 무게중심 기준 rest 위치로
-// 약하게 당겨 재질별 실루엣(스퀴클/물방울/타원)을 유지한다. tension에 비례 → 단단한 재질일수록 형태 고수.
-const SHAPE_FACTOR = 0.35;
+const PHYSICS_STEP_MS = 1000 / 60;
+const MAX_CATCHUP_STEPS = 2;
+const FEEDBACK_INTERVAL_MS = 64;
+const SLEEP_MOTION_PX = 0.045;
+const SLEEP_STABLE_FRAMES = 18;
+const MAX_SETTLE_FRAMES = 360;
 
 type Props = {
   size: number;
@@ -61,226 +33,105 @@ type Props = {
   physics: BlobPhysics;
   shape: BlobShape;
   resetKey: string;
+  enabled?: boolean;
+  accessibilityLabel?: string;
   onSqueezeStart: (x: number, y: number) => void;
   onSqueezeMove: (x: number, y: number, speed: number) => void;
   onRelease: () => void;
 };
 
-function restDir(i: number, shape: BlobShape): { rx: number; ry: number } {
-  const a = (i / RING) * Math.PI * 2;
-  const lobe = 1 + shape.lobeAmp * Math.cos(shape.lobes * a);
-  return {
-    rx: Math.cos(a) * shape.aspectX * lobe,
-    ry: Math.sin(a) * shape.aspectY * lobe,
-  };
-}
-
-type Sim = {
-  nodes: Node[];
-  restLen: number[];
-  restArea: number;
-  restOffX: number[]; // 무게중심 기준 rest 위치 오프셋 (형태 기억용)
-  restOffY: number[];
-};
-
-function polygonArea(nodes: Node[]): number {
-  let a = 0;
-  for (let i = 0; i < nodes.length; i++) {
-    const p = nodes[i];
-    const q = nodes[(i + 1) % nodes.length];
-    a += p.x * q.y - q.x * p.y;
-  }
-  return a * 0.5;
-}
-
-function buildSim(s: BlobShape, R: number, cx0: number, cy0: number): Sim {
-  const rr = R * s.scale;
-  const nodes: Node[] = [];
-  const restOffX: number[] = [];
-  const restOffY: number[] = [];
-  for (let i = 0; i < RING; i++) {
-    const d = restDir(i, s);
-    const ox = d.rx * rr;
-    const oy = d.ry * rr;
-    restOffX.push(ox);
-    restOffY.push(oy);
-    nodes.push({ x: cx0 + ox, y: cy0 + oy, ox: cx0 + ox, oy: cy0 + oy });
-  }
-  const restLen: number[] = [];
-  for (let i = 0; i < RING; i++) {
-    const a = nodes[i];
-    const b = nodes[(i + 1) % RING];
-    restLen.push(Math.hypot(a.x - b.x, a.y - b.y));
-  }
-  return { nodes, restLen, restArea: Math.abs(polygonArea(nodes)), restOffX, restOffY };
-}
-
-/** 둘레 좌표를 평탄 배열 [x0,y0,x1,y1,...]로 (공유값 → UI 스레드 렌더용) */
-function flattenNodes(nodes: Node[]): number[] {
-  const out: number[] = [];
-  for (let i = 0; i < nodes.length; i++) {
-    out.push(nodes[i].x, nodes[i].y);
-  }
-  return out;
-}
-
-/**
- * Skia 압력 소프트바디 블롭. 멀티터치로 누르면 표면이 들어가고 압력이 옆으로 부푼다.
- */
-export function SoftBodyBlob({
+/** Physics, touch tracking and rendering stay on the UI thread. */
+export const SoftBodyBlob = memo(function SoftBodyBlob({
   size,
   outerColor,
   innerColor,
   physics,
   shape,
   resetKey,
+  enabled = true,
+  accessibilityLabel,
   onSqueezeStart,
   onSqueezeMove,
   onRelease,
 }: Props) {
   const R = size * 0.3;
-  const cx0 = size / 2;
-  const cy0 = size / 2;
-  const fingerR = R * FINGER_R_FACTOR;
-
-  const phys = useRef(physics);
-  phys.current = physics;
-  const shapeRef = useRef(shape);
-  shapeRef.current = shape;
-
-  // 손가락 좌표(멀티터치) — gesture-handler 워클릿(UI 스레드)이 쓰고 물리 루프(JS)가 읽는다.
-  const fingersSV = useSharedValue<{ x: number; y: number }[]>([]);
+  const initialSim = useMemo(() => buildSim(shape, R, size / 2, size / 2), [shape, R, size]);
+  const sim = useSharedValue(initialSim);
+  const fingersSV = useSharedValue<Finger[]>([]);
+  const posSV = useSharedValue(flattenNodes(initialSim.nodes));
+  const awake = useSharedValue(true);
+  const touching = useSharedValue(false);
+  const accumulator = useSharedValue(0);
+  const stableFrames = useSharedValue(0);
+  const settleFrames = useSharedValue(0);
   const prevX = useSharedValue(0);
   const prevY = useSharedValue(0);
-  const sim = useRef<Sim>(buildSim(shape, R, cx0, cy0));
-
-  // 둘레 좌표를 평탄 배열로 공유값에 담아 UI 스레드에서 path를 그린다.
-  // (매 프레임 setState 리렌더 + 새 SkPath 할당 제거 → JS 스레드 부하·GC 감소)
-  const posSV = useSharedValue<number[]>(flattenNodes(sim.current.nodes));
+  const lastFeedbackTime = useSharedValue(0);
 
   useEffect(() => {
-    sim.current = buildSim(shapeRef.current, R, cx0, cy0);
-    posSV.value = flattenNodes(sim.current.nodes);
-  }, [resetKey, cx0, cy0, R, posSV]);
+    sim.value = initialSim;
+    posSV.value = flattenNodes(initialSim.nodes);
+    fingersSV.value = [];
+    touching.value = false;
+    stableFrames.value = 0;
+    settleFrames.value = 0;
+    awake.value = true;
+    accumulator.value = 0;
+  }, [
+    initialSim,
+    resetKey,
+    sim,
+    posSV,
+    fingersSV,
+    touching,
+    stableFrames,
+    settleFrames,
+    awake,
+    accumulator,
+  ]);
+
+  const frame = useFrameCallback(({ timeSincePreviousFrame }) => {
+    'worklet';
+    if (!awake.value) return;
+    accumulator.value = Math.min(
+      accumulator.value + (timeSincePreviousFrame ?? PHYSICS_STEP_MS),
+      PHYSICS_STEP_MS * MAX_CATCHUP_STEPS,
+    );
+    if (accumulator.value < PHYSICS_STEP_MS) return;
+
+    sim.modify((current) => {
+      'worklet';
+      let motion = 0;
+      while (accumulator.value >= PHYSICS_STEP_MS) {
+        motion = stepSimulation(current, physics, fingersSV.value, size);
+        accumulator.value -= PHYSICS_STEP_MS;
+      }
+      posSV.value = flattenNodes(current.nodes);
+      if (fingersSV.value.length === 0) {
+        settleFrames.value += 1;
+        stableFrames.value = motion < SLEEP_MOTION_PX ? stableFrames.value + 1 : 0;
+        if (stableFrames.value >= SLEEP_STABLE_FRAMES || settleFrames.value >= MAX_SETTLE_FRAMES) {
+          awake.value = false;
+        }
+      } else {
+        stableFrames.value = 0;
+        settleFrames.value = 0;
+      }
+      return current;
+    });
+  }, false);
 
   useEffect(() => {
-    let raf: number;
-    const step = () => {
-      const { nodes, restLen, restArea, restOffX, restOffY } = sim.current;
-      const { pressure, tension, friction } = phys.current;
-      const fs = fingersSV.value;
-      const n = nodes.length;
-
-      // 1) Verlet 적분
-      for (let i = 0; i < n; i++) {
-        const p = nodes[i];
-        const vx = (p.x - p.ox) * friction;
-        const vy = (p.y - p.oy) * friction;
-        p.ox = p.x;
-        p.oy = p.y;
-        p.x += vx;
-        p.y += vy;
-      }
-
-      // 2) 손가락(고체 원) 충돌 — 원 안의 표면점을 밖으로 밀어 눌린 자국을 만든다 (멀티터치).
-      //    프레임당 변위를 상한으로 막아 점이 이웃을 관통(자기교차)해 곡선이 깨지는 것을 방지.
-      const maxDisp = R * MAX_FINGER_DISP;
-      for (let k = 0; k < fs.length; k++) {
-        const f = fs[k];
-        for (let i = 0; i < n; i++) {
-          const p = nodes[i];
-          const dx = p.x - f.x;
-          const dy = p.y - f.y;
-          const d = Math.hypot(dx, dy);
-          if (d < fingerR && d > 0.001) {
-            const disp = Math.min((fingerR - d) * FINGER_PUSH, maxDisp);
-            const s = disp / d;
-            p.x += dx * s;
-            p.y += dy * s;
-          }
-        }
-      }
-
-      // 3) 막 스프링 이완 (표면장력·매끈함) — 이웃 점을 rest 길이로
-      for (let it = 0; it < ITER; it++) {
-        for (let i = 0; i < n; i++) {
-          const a = nodes[i];
-          const b = nodes[(i + 1) % n];
-          const dx = b.x - a.x;
-          const dy = b.y - a.y;
-          const d = Math.hypot(dx, dy) || 0.0001;
-          const diff = ((restLen[i] - d) / d) * 0.5 * tension;
-          const ox = dx * diff;
-          const oy = dy * diff;
-          a.x -= ox;
-          a.y -= oy;
-          b.x += ox;
-          b.y += oy;
-        }
-      }
-
-      // 4) 부피 보존(가스압) — 변 법선 방향으로 P=nRT/V (Matyka pressurized soft body).
-      //    변 법선은 재질별 실루엣(스퀴클/물방울/타원)을 보존한다(정점 법선은 형태를 둥글려 부적합).
-      //    부호 있는 면적(sign)으로 오목/꼬임 시 압력 역전을 막고, 면적 하한으로 발산을 막는다.
-      let A2 = 0;
-      for (let i = 0; i < n; i++) {
-        const a = nodes[i];
-        const b = nodes[(i + 1) % n];
-        A2 += a.x * b.y - b.x * a.y;
-      }
-      const sign = A2 >= 0 ? 1 : -1;
-      const area = Math.max(Math.abs(A2 * 0.5), R * R * 0.3); // 납작하게 눌려도 분모 폭주 방지
-      const pGas = Math.min((pressure * restArea) / area, pressure * MAX_PRESS_MULT);
-      for (let i = 0; i < n; i++) {
-        const a = nodes[i];
-        const b = nodes[(i + 1) % n];
-        const ex = b.x - a.x;
-        const ey = b.y - a.y;
-        const el = Math.hypot(ex, ey) || 0.0001;
-        const nx = (sign * ey) / el; // 외향 변 법선
-        const ny = (-sign * ex) / el;
-        const fpush = pGas * el * PRESS_SCALE;
-        a.x += nx * fpush;
-        a.y += ny * fpush;
-        b.x += nx * fpush;
-        b.y += ny * fpush;
-      }
-
-      // 5) 무게중심 산출
-      let cx = 0;
-      let cy = 0;
-      for (let i = 0; i < n; i++) {
-        cx += nodes[i].x;
-        cy += nodes[i].y;
-      }
-      cx /= n;
-      cy /= n;
-
-      // 6) 형태 기억 — 정점을 무게중심 기준 rest 위치로 약하게 당겨 재질 실루엣 유지(tension 비례)
-      const shapeK = tension * SHAPE_FACTOR;
-      for (let i = 0; i < n; i++) {
-        const p = nodes[i];
-        p.x += (cx + restOffX[i] - p.x) * shapeK;
-        p.y += (cy + restOffY[i] - p.y) * shapeK;
-      }
-
-      // 7) 무게중심을 제자리로 — 떠다니지 않게 약하게 고정
-      const ax = (cx0 - cx) * ANCHOR_K;
-      const ay = (cy0 - cy) * ANCHOR_K;
-      if (ax || ay) {
-        for (let i = 0; i < n; i++) {
-          nodes[i].x += ax;
-          nodes[i].y += ay;
-        }
-      }
-
-      // 새 좌표를 공유값에 반영 → UI 스레드 useDerivedValue가 path를 다시 그린다(리렌더 없음)
-      posSV.value = flattenNodes(nodes);
-      raf = requestAnimationFrame(step);
-    };
-    raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
-  }, [cx0, cy0, R, fingerR, posSV, fingersSV]);
+    frame.setActive(enabled);
+    if (!enabled) {
+      fingersSV.value = [];
+      touching.value = false;
+    } else {
+      awake.value = true;
+      accumulator.value = 0;
+    }
+    return () => frame.setActive(false);
+  }, [enabled, frame, fingersSV, touching, awake, accumulator]);
 
   // UI 스레드에서 재사용 SkPath에 Catmull-Rom 곡선을 매 프레임 갱신 (할당/리렌더 없음)
   const skPath = useMemo(() => Skia.Path.Make(), []);
@@ -322,55 +173,93 @@ export function SoftBodyBlob({
   const hlX = useDerivedValue(() => gradC.value.x - R * 0.02, [gradC, R]);
   const hlY = useDerivedValue(() => gradC.value.y - R * 0.04, [gradC, R]);
 
-  // gesture-handler 멀티터치 — 모든 손가락(allTouches)을 추적해 엄지 두 개 쭈그리기를 지원한다.
-  // PanResponder의 단일 responder 한계(둘째 손가락 grant 누락) 없이 포인터별 좌표를 얻는다.
   const gesture = useMemo(
     () =>
       Gesture.Manual()
+        .enabled(enabled)
         .onTouchesDown((e, manager) => {
           'worklet';
-          fingersSV.value = e.allTouches.map((t) => ({ x: t.x, y: t.y }));
-          const t0 = e.allTouches[0];
-          if (t0) {
-            prevX.value = t0.absoluteX;
-            prevY.value = t0.absoluteY;
-            runOnJS(onSqueezeStart)(t0.absoluteX, t0.absoluteY);
+          fingersSV.value = e.allTouches.map((touch) => ({ x: touch.x, y: touch.y }));
+          awake.value = true;
+          stableFrames.value = 0;
+          settleFrames.value = 0;
+          const touch = e.allTouches[0];
+          if (touch && !touching.value) {
+            touching.value = true;
+            prevX.value = touch.x;
+            prevY.value = touch.y;
+            lastFeedbackTime.value = Date.now();
+            runOnJS(onSqueezeStart)(touch.x, touch.y);
           }
           if (e.numberOfTouches >= 1) manager.activate();
         })
         .onTouchesMove((e) => {
           'worklet';
-          fingersSV.value = e.allTouches.map((t) => ({ x: t.x, y: t.y }));
-          const t0 = e.allTouches[0];
-          if (!t0) return;
-          const sp = Math.hypot(t0.absoluteX - prevX.value, t0.absoluteY - prevY.value);
-          prevX.value = t0.absoluteX;
-          prevY.value = t0.absoluteY;
-          runOnJS(onSqueezeMove)(t0.absoluteX, t0.absoluteY, sp);
+          fingersSV.value = e.allTouches.map((touch) => ({ x: touch.x, y: touch.y }));
+          const touch = e.allTouches[0];
+          const now = Date.now();
+          const elapsed = now - lastFeedbackTime.value;
+          if (!touch || elapsed < FEEDBACK_INTERVAL_MS) return;
+          // Normalize velocity to a 60 Hz step, independent of touch sampling rate.
+          const speed =
+            (Math.hypot(touch.x - prevX.value, touch.y - prevY.value) * PHYSICS_STEP_MS) /
+            Math.max(PHYSICS_STEP_MS, elapsed);
+          prevX.value = touch.x;
+          prevY.value = touch.y;
+          lastFeedbackTime.value = now;
+          runOnJS(onSqueezeMove)(touch.x, touch.y, speed);
         })
         .onTouchesUp((e, manager) => {
           'worklet';
           const remaining = e.allTouches.filter(
-            (t) => !e.changedTouches.some((c) => c.id === t.id),
+            (touch) => !e.changedTouches.some((changed) => changed.id === touch.id),
           );
-          fingersSV.value = remaining.map((t) => ({ x: t.x, y: t.y }));
-          if (remaining.length === 0) {
+          fingersSV.value = remaining.map((touch) => ({ x: touch.x, y: touch.y }));
+          // Changing the leading finger must not look like a fast swipe.
+          if (remaining[0]) {
+            prevX.value = remaining[0].x;
+            prevY.value = remaining[0].y;
+            lastFeedbackTime.value = Date.now();
+          } else {
             manager.end();
-            runOnJS(onRelease)();
           }
         })
         .onTouchesCancelled((_e, manager) => {
           'worklet';
-          fingersSV.value = [];
           manager.end();
-          runOnJS(onRelease)();
+        })
+        .onFinalize(() => {
+          'worklet';
+          fingersSV.value = [];
+          awake.value = true;
+          if (touching.value) {
+            touching.value = false;
+            runOnJS(onRelease)();
+          }
         }),
-    [onSqueezeStart, onSqueezeMove, onRelease, fingersSV, prevX, prevY],
+    [
+      enabled,
+      onSqueezeStart,
+      onSqueezeMove,
+      onRelease,
+      fingersSV,
+      prevX,
+      prevY,
+      lastFeedbackTime,
+      awake,
+      touching,
+      stableFrames,
+      settleFrames,
+    ],
   );
 
   return (
     <GestureDetector gesture={gesture}>
-      <View style={{ width: size, height: size }}>
+      <View
+        accessible
+        accessibilityLabel={accessibilityLabel}
+        style={{ width: size, height: size }}
+      >
         <Canvas style={{ width: size, height: size }} pointerEvents="none">
           <Group>
             <Path path={animatedPath}>
@@ -382,4 +271,4 @@ export function SoftBodyBlob({
       </View>
     </GestureDetector>
   );
-}
+});
