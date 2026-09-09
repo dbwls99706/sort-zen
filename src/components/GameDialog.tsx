@@ -1,5 +1,6 @@
 import React from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from './ThemeProvider';
 import { useTranslation } from '../i18n';
 import { HINT_COST } from '../core/constants';
@@ -17,7 +18,7 @@ export function GameDialog({ kind, onResume, onReset, onMenu, onRewardHint }: Pr
   const { t } = useTranslation();
   return (
     <Modal visible={kind !== null} transparent animationType="fade" onRequestClose={onResume}>
-      <View style={styles.backdrop}>
+      <SafeAreaView style={styles.backdrop}>
         <ScrollView contentContainerStyle={styles.scroll} bounces={false}>
           <View style={[styles.card, { backgroundColor: theme.surface }]} accessibilityViewIsModal>
             <Text style={[styles.title, { color: theme.text }]} accessibilityRole="header">
@@ -70,7 +71,7 @@ export function GameDialog({ kind, onResume, onReset, onMenu, onRewardHint }: Pr
             )}
           </View>
         </ScrollView>
-      </View>
+      </SafeAreaView>
     </Modal>
   );
 }

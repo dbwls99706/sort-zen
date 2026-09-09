@@ -5,6 +5,7 @@ import Animated, {
   Easing,
   useAnimatedStyle,
   useSharedValue,
+  useReducedMotion,
   withTiming,
 } from 'react-native-reanimated';
 
@@ -72,11 +73,13 @@ const ParticleView = memo(function ParticleView({ particle }: { particle: Partic
 /** React only mounts bursts; their movement and fading run entirely on the UI thread. */
 export const AsmrParticles = forwardRef<AsmrParticlesHandle>(function AsmrParticles(_props, ref) {
   const [particles, setParticles] = useState<Particle[]>([]);
+  const reducedMotion = useReducedMotion();
   useImperativeHandle(
     ref,
     () => ({
       clear: () => setParticles([]),
       spawn: (x, y, palette, count) => {
+        if (reducedMotion) return;
         const now = Date.now();
         const burst = Array.from({ length: count }, () => {
           const angle = Math.random() * Math.PI * 2;
@@ -101,7 +104,7 @@ export const AsmrParticles = forwardRef<AsmrParticlesHandle>(function AsmrPartic
         );
       },
     }),
-    [],
+    [reducedMotion],
   );
   useEffect(() => {
     if (particles.length === 0) return;

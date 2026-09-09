@@ -45,7 +45,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
                   key={index}
                   style={[
                     styles.dot,
-                    { backgroundColor: index === page ? theme.accent : theme.border },
+                    { backgroundColor: index === page ? theme.accentInk : theme.border },
                     index === page && styles.dotActive,
                   ]}
                 />

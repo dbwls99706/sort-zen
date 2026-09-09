@@ -1,12 +1,11 @@
+import { ScreenLayout } from '../src/components/ScreenLayout';
 import React from 'react';
-import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useUserStore } from '../src/store/userStore';
 import { useTheme } from '../src/components/ThemeProvider';
 import { SoundManager } from '../src/audio/SoundManager';
 import { Haptic } from '../src/utils/haptics';
-import { AdBanner } from '../src/ads/banner';
 import { useTranslation } from '../src/i18n';
 
 export default function StatsScreen() {
@@ -25,43 +24,19 @@ export default function StatsScreen() {
   const handleBack = () => {
     SoundManager.play('button_tap');
     Haptic.light();
-    router.back();
+    if (router.canGoBack()) router.back();
+    else router.replace('/');
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={styles.header}>
-        <Pressable
-          onPress={handleBack}
-          style={styles.backButton}
-          accessibilityRole="button"
-          accessibilityLabel={t('back')}
-        >
-          <Text style={[styles.backText, { color: theme.accent }]}>←</Text>
-        </Pressable>
-        <Text style={[styles.title, { color: theme.text }]}>{t('stats')}</Text>
-        <View style={styles.spacer} />
+    <ScreenLayout title={t('stats')} onBack={handleBack}>
+      <View style={styles.grid}>
+        <StatCard label={t('level')} value={`⭐ ${level}`} theme={theme} />
+        <StatCard label={t('cleared')} value={`🏆 ${totalCleared}`} theme={theme} />
+        <StatCard label={t('play_time')} value={`⏱️ ${formatTime(totalPlayTime)}`} theme={theme} />
+        <StatCard label={t('coins')} value={`🪙 ${coins}`} theme={theme} />
       </View>
-
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ paddingBottom: 24 }}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.grid}>
-          <StatCard label={t('level')} value={`⭐ ${level}`} theme={theme} />
-          <StatCard label={t('cleared')} value={`🏆 ${totalCleared}`} theme={theme} />
-          <StatCard
-            label={t('play_time')}
-            value={`⏱️ ${formatTime(totalPlayTime)}`}
-            theme={theme}
-          />
-          <StatCard label={t('coins')} value={`🪙 ${coins}`} theme={theme} />
-        </View>
-      </ScrollView>
-
-      <AdBanner />
-    </SafeAreaView>
+    </ScreenLayout>
   );
 }
 
@@ -72,54 +47,42 @@ type StatCardProps = {
 };
 
 function StatCard({ label, value, theme }: StatCardProps) {
+  const { fontScale } = useWindowDimensions();
   return (
-    <View style={[styles.card, { backgroundColor: theme.surface }]}>
-      <Text style={[styles.cardValue, { color: theme.accent }]}>{value}</Text>
+    <View
+      style={[
+        styles.card,
+        { backgroundColor: theme.surface, minWidth: 130 * Math.min(fontScale, 2) },
+      ]}
+    >
+      <Text style={[styles.cardValue, { color: theme.accentInk }]}>{value}</Text>
       <Text style={[styles.cardLabel, { color: theme.textSecondary }]}>{label}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingHorizontal: 24,
-  },
-  backButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 16,
-  },
-  backText: {
-    fontSize: 24,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  spacer: {
-    width: 48,
-  },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 16,
-    marginTop: 32,
+    gap: 12,
+    marginTop: 16,
   },
   card: {
-    width: '46%',
+    flexBasis: '47%',
+    flexGrow: 1,
     borderRadius: 16,
-    padding: 20,
+    padding: 16,
     alignItems: 'center',
   },
   cardValue: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 4,
+    textAlign: 'center',
   },
   cardLabel: {
     fontSize: 14,
+    textAlign: 'center',
   },
 });

@@ -81,7 +81,10 @@ export const TubeComponent = memo(function TubeComponent(props: TubeProps) {
     >
       <View
         pointerEvents="none"
-        style={[styles.selectionMark, { backgroundColor: selected ? theme.accent : 'transparent' }]}
+        style={[
+          styles.selectionMark,
+          { backgroundColor: selected ? theme.accentInk : 'transparent' },
+        ]}
       />
       <Animated.View pointerEvents="none" style={[styles.container, motion]}>
         <Canvas style={styles.canvas} pointerEvents="none">
@@ -100,7 +103,7 @@ export const TubeComponent = memo(function TubeComponent(props: TubeProps) {
             path={outline}
             style="stroke"
             strokeWidth={2.5}
-            color={completed ? topColor : selected || hinted ? theme.accent : theme.tubeOutline}
+            color={completed ? topColor : selected || hinted ? theme.accentInk : theme.tubeOutline}
             strokeCap="round"
           />
           <Path

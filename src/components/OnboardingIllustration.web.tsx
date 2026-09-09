@@ -37,7 +37,7 @@ export function OnboardingIllustration({ step = 0 }: { step?: number }) {
               <Text
                 style={[
                   styles.marker,
-                  { color: selected ? theme.accent : full ? theme.success : 'transparent' },
+                  { color: selected ? theme.accentInk : full ? theme.success : 'transparent' },
                 ]}
               >
                 {full ? '✓' : '↓'}
@@ -46,7 +46,7 @@ export function OnboardingIllustration({ step = 0 }: { step?: number }) {
                 style={[
                   styles.rim,
                   {
-                    borderColor: selected ? theme.accent : theme.tubeOutline,
+                    borderColor: selected ? theme.accentInk : theme.tubeOutline,
                     backgroundColor: theme.surface,
                   },
                 ]}
@@ -55,7 +55,7 @@ export function OnboardingIllustration({ step = 0 }: { step?: number }) {
                 style={[
                   styles.tube,
                   {
-                    borderColor: selected ? theme.accent : theme.tubeOutline,
+                    borderColor: selected ? theme.accentInk : theme.tubeOutline,
                     backgroundColor: theme.surface,
                   },
                 ]}
@@ -75,7 +75,7 @@ export function OnboardingIllustration({ step = 0 }: { step?: number }) {
           );
         })}
       </View>
-      {step === 0 && <Text style={[styles.arrow, { color: theme.accent }]}>→</Text>}
+      {step === 0 && <Text style={[styles.arrow, { color: theme.accentInk }]}>→</Text>}
     </View>
   );
 }

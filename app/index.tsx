@@ -87,13 +87,13 @@ export default function MainMenu() {
               accessible
               accessibilityLabel={`${t('coins')}: ${coins}`}
             >
-              <Text style={[styles.coinMark, { color: theme.accent }]}>◈</Text>
+              <Text style={[styles.coinMark, { color: theme.accentInk }]}>◈</Text>
               <Text style={[styles.coinValue, { color: theme.text }]}>{coins}</Text>
             </View>
           </View>
 
           <View style={[styles.hero, { backgroundColor: theme.hero, borderColor: theme.border }]}>
-            <Text style={[styles.eyebrow, { color: theme.accent }]}>{t('home_eyebrow')}</Text>
+            <Text style={[styles.eyebrow, { color: theme.accentInk }]}>{t('home_eyebrow')}</Text>
             <Text style={[styles.headline, { color: theme.text }]}>{t('home_headline')}</Text>
             <MenuArtwork />
             <Pressable
@@ -134,7 +134,7 @@ export default function MainMenu() {
               ]}
             >
               <View style={[styles.modeSymbol, { backgroundColor: theme.accentSoft }]}>
-                <Text style={[styles.infinity, { color: theme.accent }]}>∞</Text>
+                <Text style={[styles.infinity, { color: theme.accentInk }]}>∞</Text>
               </View>
               <Text style={[styles.modeTitle, { color: theme.text }]}>{t('zen')}</Text>
               <Text style={[styles.modeDescription, { color: theme.textSecondary }]}>
@@ -209,6 +209,8 @@ const styles = StyleSheet.create({
   content: { width: '100%', maxWidth: 520 },
   header: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 18,
@@ -264,8 +266,8 @@ const styles = StyleSheet.create({
   },
   arrow: { fontSize: 24, lineHeight: 30 },
   sectionTitle: { fontSize: 12, fontWeight: '600', marginTop: 24, marginBottom: 12 },
-  modes: { flexDirection: 'row', gap: 12, marginBottom: 16 },
-  modeCard: { flex: 1, borderRadius: 22, padding: 16, borderWidth: 1 },
+  modes: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 16 },
+  modeCard: { flex: 1, minWidth: 130, borderRadius: 22, padding: 16, borderWidth: 1 },
   modeSymbol: {
     width: 46,
     height: 46,
@@ -279,17 +281,25 @@ const styles = StyleSheet.create({
   modeDescription: { fontSize: 12, lineHeight: 19, marginTop: 5 },
   soundBars: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   soundBar: { width: 4, borderRadius: 3 },
-  navigation: { borderTopWidth: 1, flexDirection: 'row', marginTop: 20, paddingTop: 8 },
+  navigation: {
+    borderTopWidth: 1,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 20,
+    paddingTop: 8,
+    gap: 8,
+  },
   navButton: {
     flex: 1,
     minHeight: 48,
+    minWidth: 56,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 3,
   },
   navLabelWrap: { alignItems: 'center' },
-  navLabel: { fontSize: 12, fontWeight: '600', textAlign: 'center' },
+  navLabel: { fontSize: 13, fontWeight: '600', textAlign: 'center' },
   badge: { width: 5, height: 5, borderRadius: 3, position: 'absolute', right: -7, top: -2 },
-  leaderboard: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  leaderboard: { minHeight: 48, alignItems: 'center', justifyContent: 'center' },
   pressed: { opacity: 0.75 },
 });

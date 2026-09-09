@@ -191,7 +191,7 @@ export default function GameScreen() {
         toolbar={false}
       />
       <View style={styles.boardStatus}>
-        <Text style={[styles.progressText, { color: theme.accent }]}>
+        <Text style={[styles.progressText, { color: theme.accentInk }]}>
           {t('board_sorted', { n: completeCount, total: colorCount })}
         </Text>
         <View style={[styles.progressTrack, { backgroundColor: theme.border }]}>

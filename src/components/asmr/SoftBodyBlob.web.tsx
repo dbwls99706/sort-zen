@@ -75,8 +75,10 @@ export const SoftBodyBlob = memo(function SoftBodyBlob({
   const stop = useCallback(() => {
     if (frame.current !== null) cancelAnimationFrame(frame.current);
     frame.current = null;
+    const wasTouching = fingers.current.size > 0;
     fingers.current.clear();
-  }, []);
+    if (wasTouching) onRelease();
+  }, [onRelease]);
 
   const wake = useCallback(() => {
     stable.current = 0;

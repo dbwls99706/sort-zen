@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useMemo } from 'react';
+import React, { memo, useCallback, useEffect, useMemo } from 'react';
 import { View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import {
@@ -67,8 +67,16 @@ export const SoftBodyBlob = memo(function SoftBodyBlob({
   const prevX = useSharedValue(0);
   const prevY = useSharedValue(0);
   const lastFeedbackTime = useSharedValue(0);
+  const releaseTouches = useCallback(() => {
+    fingersSV.value = [];
+    if (touching.value) {
+      touching.value = false;
+      onRelease();
+    }
+  }, [fingersSV, touching, onRelease]);
 
   useEffect(() => {
+    releaseTouches();
     sim.value = initialSim;
     posSV.value = flattenNodes(initialSim.nodes);
     fingersSV.value = [];
@@ -77,6 +85,7 @@ export const SoftBodyBlob = memo(function SoftBodyBlob({
     settleFrames.value = 0;
     awake.value = true;
     accumulator.value = 0;
+    return releaseTouches;
   }, [
     initialSim,
     resetKey,
@@ -88,6 +97,7 @@ export const SoftBodyBlob = memo(function SoftBodyBlob({
     settleFrames,
     awake,
     accumulator,
+    releaseTouches,
   ]);
 
   const frame = useFrameCallback(({ timeSincePreviousFrame }) => {
@@ -124,14 +134,13 @@ export const SoftBodyBlob = memo(function SoftBodyBlob({
   useEffect(() => {
     frame.setActive(enabled);
     if (!enabled) {
-      fingersSV.value = [];
-      touching.value = false;
+      releaseTouches();
     } else {
       awake.value = true;
       accumulator.value = 0;
     }
     return () => frame.setActive(false);
-  }, [enabled, frame, fingersSV, touching, awake, accumulator]);
+  }, [enabled, frame, releaseTouches, awake, accumulator]);
 
   // UI 스레드에서 재사용 SkPath에 Catmull-Rom 곡선을 매 프레임 갱신 (할당/리렌더 없음)
   const skPath = useMemo(() => Skia.Path.Make(), []);

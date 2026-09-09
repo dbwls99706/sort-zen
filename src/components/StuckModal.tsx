@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, Pressable, Modal, StyleSheet } from 'react-native';
+import { View, Text, Pressable, Modal, StyleSheet, ScrollView } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from './ThemeProvider';
 import { useTranslation } from '../i18n';
 
@@ -29,63 +30,69 @@ export function StuckModal({
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onMenu}>
-      <View style={styles.overlay}>
-        <View style={[styles.card, { backgroundColor: theme.surface }]}>
-          <Text style={[styles.title, { color: theme.text }]}>{t('stuck_title')}</Text>
-          <Text style={[styles.desc, { color: theme.textSecondary }]}>
-            {notice ?? t('stuck_desc')}
-          </Text>
+      <SafeAreaView style={styles.overlay}>
+        <ScrollView contentContainerStyle={styles.scroll}>
+          <View style={[styles.card, { backgroundColor: theme.surface }]} accessibilityViewIsModal>
+            <Text accessibilityRole="header" style={[styles.title, { color: theme.text }]}>
+              {t('stuck_title')}
+            </Text>
+            <Text style={[styles.desc, { color: theme.textSecondary }]}>
+              {notice ?? t('stuck_desc')}
+            </Text>
 
-          {onAddTube && (
-            <Pressable
-              accessibilityRole="button"
-              style={[styles.button, { backgroundColor: theme.accent }]}
-              onPress={onAddTube}
-            >
-              <Text style={styles.buttonText}>{t('add_tube')}</Text>
-            </Pressable>
-          )}
+            {onAddTube && (
+              <Pressable
+                accessibilityRole="button"
+                style={[styles.button, { backgroundColor: theme.accent }]}
+                onPress={onAddTube}
+              >
+                <Text style={styles.buttonText}>{t('add_tube')}</Text>
+              </Pressable>
+            )}
 
-          {canUndo && (
+            {canUndo && (
+              <Pressable
+                accessibilityRole="button"
+                style={[
+                  styles.button,
+                  onAddTube
+                    ? [styles.secondaryButton, { borderColor: theme.accentInk }]
+                    : { backgroundColor: theme.accent },
+                ]}
+                onPress={onUndo}
+              >
+                <Text
+                  style={
+                    onAddTube
+                      ? [styles.secondaryButtonText, { color: theme.accentInk }]
+                      : styles.buttonText
+                  }
+                >
+                  {t('undo')}
+                </Text>
+              </Pressable>
+            )}
+
             <Pressable
               accessibilityRole="button"
               style={[
                 styles.button,
-                onAddTube
-                  ? [styles.secondaryButton, { borderColor: theme.accent }]
-                  : { backgroundColor: theme.accent },
+                styles.secondaryButton,
+                styles.lastButton,
+                { borderColor: theme.accentInk },
               ]}
-              onPress={onUndo}
+              onPress={onNewBoard}
             >
-              <Text
-                style={
-                  onAddTube
-                    ? [styles.secondaryButtonText, { color: theme.accent }]
-                    : styles.buttonText
-                }
-              >
-                {t('undo')}
+              <Text style={[styles.secondaryButtonText, { color: theme.accentInk }]}>
+                {t('reset')}
               </Text>
             </Pressable>
-          )}
-
-          <Pressable
-            accessibilityRole="button"
-            style={[
-              styles.button,
-              styles.secondaryButton,
-              styles.lastButton,
-              { borderColor: theme.accent },
-            ]}
-            onPress={onNewBoard}
-          >
-            <Text style={[styles.secondaryButtonText, { color: theme.accent }]}>{t('reset')}</Text>
-          </Pressable>
-          <Pressable accessibilityRole="button" onPress={onMenu} style={styles.menuButton}>
-            <Text style={{ color: theme.textSecondary }}>{t('menu')}</Text>
-          </Pressable>
-        </View>
-      </View>
+            <Pressable accessibilityRole="button" onPress={onMenu} style={styles.menuButton}>
+              <Text style={{ color: theme.textSecondary }}>{t('menu')}</Text>
+            </Pressable>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
     </Modal>
   );
 }
@@ -94,11 +101,10 @@ const styles = StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
+  scroll: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   card: {
-    width: '90%',
+    width: '100%',
     maxWidth: 380,
     borderRadius: 28,
     padding: 24,
@@ -117,6 +123,8 @@ const styles = StyleSheet.create({
   },
   button: {
     width: '100%',
+    minHeight: 48,
+    paddingHorizontal: 12,
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
@@ -133,10 +141,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: '#FFFFFF',
+    textAlign: 'center',
   },
   secondaryButtonText: {
     fontSize: 16,
     fontWeight: 'bold',
+    textAlign: 'center',
   },
   menuButton: { minHeight: 48, justifyContent: 'center', alignItems: 'center', marginTop: 4 },
 });

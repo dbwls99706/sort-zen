@@ -30,11 +30,11 @@ export function DailyChallengeCard({ compact = false, onPress }: Props) {
     <>
       <View style={styles.headerRow}>
         <View style={styles.heading}>
-          <Text style={[styles.spark, { color: theme.accent }]}>✦</Text>
+          <Text style={[styles.spark, { color: theme.accentInk }]}>✦</Text>
           <Text style={[styles.title, { color: theme.text }]}>{t('daily_challenge')}</Text>
         </View>
         {streak > 0 ? (
-          <Text style={[styles.streak, { color: theme.accent }]}>
+          <Text style={[styles.streak, { color: theme.accentInk }]}>
             {t('daily_streak', { n: streak })}
           </Text>
         ) : (
@@ -61,7 +61,7 @@ export function DailyChallengeCard({ compact = false, onPress }: Props) {
         </Text>
       </View>
       {compact && claimable && (
-        <Text style={[styles.badge, { color: theme.accent }]}>{t('claim_reward')} →</Text>
+        <Text style={[styles.badge, { color: theme.accentInk }]}>{t('claim_reward')} →</Text>
       )}
     </>
   );
