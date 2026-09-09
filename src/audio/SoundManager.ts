@@ -29,6 +29,7 @@ const ASMR_FADE_OUT_MS = 150;
 const ASMR_BGM_DUCK = 0.48;
 const LOOP_VOLUME_INTERVAL_MS = 50;
 const LOOP_VOLUME_MIN_CHANGE = 0.02;
+const MAX_ASMR_VOICES = 3;
 
 function effectVolume(): number {
   const { masterVolume, sfxVolume } = useSettingsStore.getState();
@@ -95,6 +96,7 @@ class SoundManagerClass {
   private loopVolumeTask: Promise<void> | null = null;
   private lastLoopVolume = -1;
   private asmrSounds: Map<number, Audio.Sound> = new Map();
+  private impactVoices: Audio.Sound[] = [];
   private loopSounds: Map<number, Audio.Sound> = new Map();
   private asmrLoads = new Map<number, Promise<Audio.Sound | null>>();
   private loopLoads = new Map<number, Promise<Audio.Sound | null>>();
@@ -277,6 +279,13 @@ class SoundManagerClass {
     )
       return;
     try {
+      this.impactVoices = this.impactVoices.filter((voice) => voice !== sound);
+      if (this.impactVoices.length >= MAX_ASMR_VOICES)
+        void this.impactVoices
+          .shift()
+          ?.stopAsync()
+          .catch(() => undefined);
+      this.impactVoices.push(sound);
       await sound.replayAsync({
         volume: clamp01(effectVolume() * gain),
       });
@@ -381,6 +390,16 @@ class SoundManagerClass {
     this.loopTargetVolume = 0;
     this.loopGain = 0;
     if (sound) await this.fadeOutDetached(sound);
+  }
+
+  /** End a material/session without leaving impact tails or asset work behind. */
+  async stopAsmr(): Promise<void> {
+    this.asmrPreloadToken += 1;
+    const voices = this.impactVoices.splice(0);
+    await Promise.all([
+      this.stopLoop(),
+      ...voices.map((sound) => sound.stopAsync().catch(() => undefined)),
+    ]);
   }
 
   /** ASMR 접촉 중 BGM을 낮춰 미세한 재질음을 앞으로 가져온다. */
@@ -526,6 +545,7 @@ class SoundManagerClass {
     ]);
     this.sounds.clear();
     this.asmrSounds.clear();
+    this.impactVoices = [];
     this.loopSounds.clear();
     this.asmrLoads.clear();
     this.loopLoads.clear();

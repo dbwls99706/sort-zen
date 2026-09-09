@@ -236,3 +236,31 @@ test('gesture volume bursts coalesce and pending updates stop on release', async
   expect(sound.setVolumeAsync).not.toHaveBeenCalledWith(0.8);
   expect(sound.setStatusAsync).toHaveBeenLastCalledWith({ shouldPlay: false, volume: 0 });
 });
+
+test('fast ASMR impacts keep at most three voices and session exit stops the remaining tails', async () => {
+  const voices = [makeSound(), makeSound(), makeSound(), makeSound()];
+  voices.forEach((voice) => createAsync.mockResolvedValueOnce(created(voice)));
+  for (const material of ['water', 'slime', 'sponge', 'handcream'] as const)
+    await SoundManager.playImpact(material);
+  expect(voices[0].stopAsync).toHaveBeenCalledTimes(1);
+  expect(voices.slice(1).every((voice) => voice.stopAsync.mock.calls.length === 0)).toBe(true);
+  await SoundManager.stopAsmr();
+  voices.forEach((voice) => expect(voice.stopAsync).toHaveBeenCalledTimes(1));
+});
+
+test('leaving ASMR cancels pending impacts and stops the rest of the material preload', async () => {
+  const loadingLoop = deferred<ReturnType<typeof created>>();
+  const loadingImpact = deferred<ReturnType<typeof created>>();
+  const impactVoice = makeSound();
+  createAsync.mockReturnValueOnce(loadingLoop.promise).mockReturnValueOnce(loadingImpact.promise);
+  const warming = SoundManager.preloadAsmr('water');
+  const playing = SoundManager.playImpact('sponge');
+  await SoundManager.stopAsmr();
+  loadingLoop.resolve(created());
+  loadingImpact.resolve(created(impactVoice));
+  await Promise.all([warming, playing]);
+  expect(createAsync).toHaveBeenCalledTimes(2);
+  expect(impactVoice.replayAsync).not.toHaveBeenCalled();
+  await SoundManager.playImpact('sponge');
+  expect(impactVoice.replayAsync).toHaveBeenCalledTimes(1);
+});
