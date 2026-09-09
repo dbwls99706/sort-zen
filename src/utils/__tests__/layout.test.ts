@@ -1,4 +1,4 @@
-import { computeTubeScale } from '../layout';
+import { computeTubeScale, computeBoardLayout, MIN_TUBE_TARGET, TUBE_GRID_GAP } from '../layout';
 
 describe('computeTubeScale', () => {
   test('충분히 넓으면 스케일 1', () => {
@@ -20,5 +20,21 @@ describe('computeTubeScale', () => {
   test('비정상 입력은 1을 반환', () => {
     expect(computeTubeScale(0, 360, 500)).toBe(1);
     expect(computeTubeScale(8, 0, 500)).toBe(1);
+  });
+});
+
+describe('board fit and touch targets', () => {
+  test.each([
+    [288, 320, 15],
+    [358, 440, 14],
+    [680, 100, 16],
+    [1024, 720, 15],
+  ])('board fits %d by %d with %d tubes or scrolls vertically', (width, height, count) => {
+    const board = computeBoardLayout(count, width, height);
+    expect(board.width).toBeLessThanOrEqual(width);
+    expect(board.cellWidth).toBeGreaterThanOrEqual(MIN_TUBE_TARGET);
+    expect(board.width).toBe(board.columns * board.cellWidth + (board.columns - 1) * TUBE_GRID_GAP);
+    expect(board.scrolls).toBe(board.contentHeight > height);
+    expect(board.columns * board.rows).toBeGreaterThanOrEqual(count);
   });
 });

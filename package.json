@@ -12,7 +12,9 @@
     "test": "jest",
     "verify": "pnpm typecheck && pnpm lint && pnpm test",
     "verify:full": "pnpm verify && pnpm test -- --coverage",
-    "prepare": "husky"
+    "prepare": "husky",
+    "export:web": "expo export --platform web --output-dir dist-web",
+    "dev": "node scripts/preview-web.cjs"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",
@@ -52,6 +54,7 @@
     "@types/seedrandom": "^3.0.8",
     "@typescript-eslint/eslint-plugin": "^8.58.0",
     "@typescript-eslint/parser": "^8.58.0",
+    "babel-preset-expo": "~54.0.12",
     "eslint": "^8.57.1",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react": "^7.37.5",

@@ -10,6 +10,8 @@ type StuckModalProps = {
   onNewBoard: () => void;
   /** 리워드 광고로 빈 튜브 1개 추가 (T144) — 미전달 시 버튼 숨김 */
   onAddTube?: () => void;
+  onMenu: () => void;
+  notice?: string | null;
 };
 
 /** 합법 수가 없을 때 탈출 경로(튜브 추가/되돌리기/새 보드)를 안내한다 (T142). */
@@ -19,23 +21,24 @@ export function StuckModal({
   onUndo,
   onNewBoard,
   onAddTube,
+  onMenu,
+  notice,
 }: StuckModalProps) {
   const theme = useTheme();
   const { t } = useTranslation();
 
   return (
-    <Modal visible={visible} transparent animationType="fade">
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onMenu}>
       <View style={styles.overlay}>
         <View style={[styles.card, { backgroundColor: theme.surface }]}>
-          <Text style={[styles.title, { color: theme.text }]}>
-            {t('stuck_title')}
-          </Text>
+          <Text style={[styles.title, { color: theme.text }]}>{t('stuck_title')}</Text>
           <Text style={[styles.desc, { color: theme.textSecondary }]}>
-            {t('stuck_desc')}
+            {notice ?? t('stuck_desc')}
           </Text>
 
           {onAddTube && (
             <Pressable
+              accessibilityRole="button"
               style={[styles.button, { backgroundColor: theme.accent }]}
               onPress={onAddTube}
             >
@@ -45,6 +48,7 @@ export function StuckModal({
 
           {canUndo && (
             <Pressable
+              accessibilityRole="button"
               style={[
                 styles.button,
                 onAddTube
@@ -66,6 +70,7 @@ export function StuckModal({
           )}
 
           <Pressable
+            accessibilityRole="button"
             style={[
               styles.button,
               styles.secondaryButton,
@@ -74,9 +79,10 @@ export function StuckModal({
             ]}
             onPress={onNewBoard}
           >
-            <Text style={[styles.secondaryButtonText, { color: theme.accent }]}>
-              {t('new_board')}
-            </Text>
+            <Text style={[styles.secondaryButtonText, { color: theme.accent }]}>{t('reset')}</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" onPress={onMenu} style={styles.menuButton}>
+            <Text style={{ color: theme.textSecondary }}>{t('menu')}</Text>
           </Pressable>
         </View>
       </View>
@@ -92,9 +98,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   card: {
-    width: 280,
-    borderRadius: 20,
-    padding: 32,
+    width: '90%',
+    maxWidth: 380,
+    borderRadius: 28,
+    padding: 24,
     alignItems: 'center',
   },
   title: {
@@ -131,4 +138,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
+  menuButton: { minHeight: 48, justifyContent: 'center', alignItems: 'center', marginTop: 4 },
 });

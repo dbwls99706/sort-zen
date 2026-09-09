@@ -1,6 +1,7 @@
 import seedrandom from 'seedrandom';
-import { Tube, ColorId } from './types';
-import { isSolvable } from './solver';
+import { Tube, Move } from './types';
+import { isTubeComplete, topColor, topRunLength } from './rules';
+import { MAX_SHUFFLE_STEPS } from './constants';
 
 export type GenParams = {
   colors: number;
@@ -11,95 +12,108 @@ export type GenParams = {
   seed: string;
 };
 
-/**
- * 같은 난이도에서 다른 시드로 재생성을 시도하는 최대 횟수.
- * 초과 시 빈 튜브를 보강해 솔버블을 구조적으로 보장한다.
- */
-const MAX_SEED_RETRIES = 6;
+export type GeneratedLevel = { tubes: Tube[]; solution: Move[] };
 
-export function generateLevel(params: GenParams, seedRetry = 0): Tube[] {
-  const { filledTubes, emptyTubes, capacity, shuffleSteps, seed } = params;
-  const rng = seedrandom(seed);
+/** A visible color boundary is useful mixing; pre-completed tubes are avoided first. */
+const MIXED_BOUNDARY_WEIGHT = 10;
+const COMPLETE_TUBE_PENALTY = 1000;
 
-  const tubes: Tube[] = [];
-  for (let c = 0; c < filledTubes; c++) {
-    tubes.push({
-      id: c,
-      capacity,
-      layers: Array<ColorId>(capacity).fill(c),
-    });
-  }
-  for (let e = 0; e < emptyTubes; e++) {
-    tubes.push({ id: filledTubes + e, capacity, layers: [] });
-  }
-
-  let attempts = 0;
-  let success = 0;
-  const maxAttempts = shuffleSteps * 10;
-
-  while (success < shuffleSteps && attempts < maxAttempts) {
-    attempts++;
-    const fromIdx = Math.floor(rng() * tubes.length);
-    const toIdx = Math.floor(rng() * tubes.length);
-    if (fromIdx === toIdx) continue;
-
-    const result = forcedPour(tubes[fromIdx], tubes[toIdx]);
-    if (result) {
-      tubes[fromIdx] = result.from;
-      tubes[toIdx] = result.to;
-      success++;
-    }
-  }
-
-  const monochromeCount = tubes.filter(
-    (t) =>
-      t.layers.length === capacity &&
-      t.layers.every((l) => l === t.layers[0]),
-  ).length;
-  // 시작 보드에 '가득 찬 단색(=이미 완성)' 튜브가 하나라도 있으면 셔플이 덜 된 것이라
-  // 다른 시드로 재시도한다(사용자 버그 리포트: 한 색이 가득 채워진 채로 스테이지가 나옴).
-  // 재시도는 seedRetry 예산 안에서만 — 예산이 바닥나면 아래 솔버블 게이트
-  // (빈 튜브 보강 → 반드시 수렴)로 떨어뜨려 무한 재귀를 막는다.
-  if (
-    monochromeCount >= 1 &&
-    shuffleSteps > 10 &&
-    seedRetry < MAX_SEED_RETRIES
-  ) {
-    return generateLevel(
-      { ...params, seed: `${seed}_r${seedRetry}` },
-      seedRetry + 1,
-    );
-  }
-
-  // 솔버블 검증 게이트 — SPEC §8 "생성기가 항상 풀리는 보드 보장".
-  // 역방향 셔플은 빈 튜브가 부족하면 비-솔버블 보드를 만들 수 있으므로,
-  // 다른 시드로 몇 번 재시도하고, 그래도 실패하면 작업 공간(빈 튜브)을
-  // 보강한다. 빈 튜브가 늘면 솔버블이 보장되므로 재귀는 반드시 수렴한다.
-  if (!isSolvable(tubes)) {
-    if (seedRetry < MAX_SEED_RETRIES) {
-      return generateLevel(
-        { ...params, seed: `${seed}_s${seedRetry}` },
-        seedRetry + 1,
-      );
-    }
-    return generateLevel(
-      { ...params, emptyTubes: emptyTubes + 1, seed: `${seed}_e` },
-      0,
-    );
-  }
-
-  return tubes;
+function boardKey(tubes: Tube[]): string {
+  return tubes.map((tube) => tube.layers.join(',')).join('|');
 }
 
-function forcedPour(
-  from: Tube,
-  to: Tube,
-): { from: Tube; to: Tube } | null {
-  if (from.layers.length === 0) return null;
-  if (to.layers.length >= to.capacity) return null;
-  const color = from.layers[from.layers.length - 1];
-  return {
-    from: { ...from, layers: from.layers.slice(0, -1) },
-    to: { ...to, layers: [...to.layers, color] },
-  };
+function mixingScore(tubes: Tube[]): number {
+  return tubes.reduce((score, tube) => {
+    let boundaries = 0;
+    for (let index = 1; index < tube.layers.length; index++) {
+      if (tube.layers[index] !== tube.layers[index - 1]) boundaries += 1;
+    }
+    return (
+      score +
+      boundaries * MIXED_BOUNDARY_WEIGHT -
+      (isTubeComplete(tube) ? COMPLETE_TUBE_PENALTY : 0)
+    );
+  }, 0);
+}
+
+/**
+ * Every shuffle must have an exact legal, maximal forward pour as its inverse.
+ * The source must keep the same top color (or become empty). If the destination
+ * already has that color, only a full source can limit the inverse to this count.
+ */
+function reverseMoves(tubes: Tube[]): Move[] {
+  const moves: Move[] = [];
+  for (const from of tubes) {
+    const color = topColor(from);
+    if (color === null) continue;
+    const run = topRunLength(from);
+    for (const to of tubes) {
+      if (from.id === to.id) continue;
+      if (topColor(to) === color && from.layers.length !== from.capacity) continue;
+      const maxCount = Math.min(run, to.capacity - to.layers.length);
+      for (let count = 1; count <= maxCount; count++) {
+        if (count === run && run < from.layers.length) continue;
+        moves.push({ from: from.id, to: to.id, colorId: color, count });
+      }
+    }
+  }
+  return moves;
+}
+
+/** Build only the chosen candidate board, rather than cloning every possible move. */
+function pickReverseStep(tubes: Tube[], visited: Set<string>, rng: () => number) {
+  const candidates = reverseMoves(tubes);
+  while (candidates.length > 0) {
+    const index = Math.floor(rng() * candidates.length);
+    const move = candidates[index];
+    candidates[index] = candidates[candidates.length - 1];
+    candidates.pop();
+    const next = tubes.map((tube) => {
+      if (tube.id === move.from) return { ...tube, layers: tube.layers.slice(0, -move.count) };
+      if (tube.id === move.to)
+        return {
+          ...tube,
+          layers: [...tube.layers, ...Array<number>(move.count).fill(move.colorId)],
+        };
+      return tube;
+    });
+    const key = boardKey(next);
+    if (visited.has(key)) continue;
+    return { tubes: next, key, inverse: { ...move, from: move.to, to: move.from } };
+  }
+  return null;
+}
+
+/** Bounded constructive generation: the shuffle itself is the solvability proof. */
+export function generateLevelWithSolution(params: GenParams): GeneratedLevel {
+  const { filledTubes, emptyTubes, capacity, seed } = params;
+  const rng = seedrandom(seed);
+  let tubes: Tube[] = Array.from({ length: filledTubes + emptyTubes }, (_, id) => ({
+    id,
+    capacity,
+    layers: id < filledTubes ? Array<number>(capacity).fill(id) : [],
+  }));
+  let best: GeneratedLevel = { tubes, solution: [] };
+  let bestScore = mixingScore(tubes);
+  const inverseMoves: Move[] = [];
+  const visited = new Set<string>([boardKey(tubes)]);
+  const steps = Math.min(Math.max(0, params.shuffleSteps), MAX_SHUFFLE_STEPS);
+
+  for (let step = 0; step < steps; step++) {
+    const candidate = pickReverseStep(tubes, visited, rng);
+    if (!candidate) break;
+    tubes = candidate.tubes;
+    visited.add(candidate.key);
+    inverseMoves.push(candidate.inverse);
+    const score = mixingScore(tubes);
+    if (score > bestScore) {
+      bestScore = score;
+      best = { tubes, solution: [...inverseMoves].reverse() };
+    }
+  }
+  return best;
+}
+
+export function generateLevel(params: GenParams): Tube[] {
+  return generateLevelWithSolution(params).tubes;
 }

@@ -1,125 +1,129 @@
 import { Tube, Move } from './types';
 import { canPour, pour, isCleared, isTubeComplete } from './rules';
 
-/**
- * 솔버 탐색 상한. water-sort는 NP-complete이라 비-솔버블 보드는
- * 전체 상태공간을 탐색할 수 있어 안전 상한을 둔다. 솔버블 보드는
- * DFS가 해에 빠르게 도달하므로 상한에 거의 닿지 않는다.
- */
 const DEFAULT_MAX_STATES = 200000;
+const DEFAULT_ASYNC_MAX_STATES = 20000;
+const DEFAULT_BATCH_SIZE = 64;
+const MAX_SLICE_MS = 6;
+const SCORE_COMPLETES_TUBE = 1000;
+const SCORE_CONSOLIDATES = 100;
+const SCORE_EMPTIES_SOURCE = 50;
 
-/** 휴리스틱 수순 정렬 가중치 (게임 규칙 아님 — 솔버 내부 탐색 튜닝값). */
-const SCORE_COMPLETES_TUBE = 1000; // 이 수로 튜브가 완성됨
-const SCORE_CONSOLIDATES = 100; // 같은 색 위로 합침(빈 튜브 채우기보다 유리)
-const SCORE_EMPTIES_SOURCE = 50; // 소스 튜브를 비움(작업 공간 확보)
-
-/**
- * 상태를 정규화한 문자열 키. 튜브는 서로 교환 가능하므로
- * 레이어 문자열을 정렬해 동형 상태를 하나로 묶는다 (상태공간 축소).
- */
 function canonical(tubes: Tube[]): string {
   return tubes
-    .map((t) => t.layers.join(','))
+    .map((tube) => `${tube.capacity}:${tube.layers.join(',')}`)
     .sort()
     .join('|');
 }
 
-/**
- * 탐색할 합법 수 목록 (인덱스 쌍).
- * 가지치기: 단색 튜브를 빈 튜브로 옮기는 건 진척 없는 이동이라 제외한다
- * (해를 보존하는 안전한 가지치기 — 그런 이동을 쓰는 모든 해는 쓰지 않는 등가 해가 존재).
- */
 function legalMoves(tubes: Tube[]): Array<[number, number]> {
   const moves: Array<[number, number]> = [];
   for (let i = 0; i < tubes.length; i++) {
     const from = tubes[i];
     if (from.layers.length === 0) continue;
-    const monochrome = from.layers.every((c) => c === from.layers[0]);
+    const monochrome = from.layers.every((color) => color === from.layers[0]);
+    const emptyCapacities = new Set<number>();
     for (let j = 0; j < tubes.length; j++) {
       if (i === j) continue;
       const to = tubes[j];
       if (!canPour(from, to)) continue;
-      if (to.layers.length === 0 && monochrome) continue;
+      if (to.layers.length === 0) {
+        // Equivalent empty destinations need only one search branch.
+        if (emptyCapacities.has(to.capacity)) continue;
+        emptyCapacities.add(to.capacity);
+        if (monochrome && to.capacity === from.capacity) continue;
+      }
       moves.push([i, j]);
     }
   }
   return moves;
 }
 
-/**
- * 수의 유망도 점수 (높을수록 먼저 탐색). NP-complete 보드에서 plain DFS는
- * 상한에 걸리므로, 진척 있는 수(튜브 완성 > 같은색 합치기 > 소스 비우기)를
- * 우선 탐색해 솔버블 보드를 빠르게 푼다.
- */
 function scoreMove(toBefore: Tube, res: { from: Tube; to: Tube; move: Move }): number {
-  let s = res.move.count;
-  if (isTubeComplete(res.to)) s += SCORE_COMPLETES_TUBE;
-  else if (toBefore.layers.length > 0) s += SCORE_CONSOLIDATES;
-  if (res.from.layers.length === 0) s += SCORE_EMPTIES_SOURCE;
-  return s;
+  let score = res.move.count;
+  if (isTubeComplete(res.to)) score += SCORE_COMPLETES_TUBE;
+  else if (toBefore.layers.length > 0) score += SCORE_CONSOLIDATES;
+  if (res.from.layers.length === 0) score += SCORE_EMPTIES_SOURCE;
+  return score;
 }
 
-/**
- * 보드를 푸는 한 가지 수순을 찾는다 (최단 보장은 하지 않음 — 힌트/검증용).
- * 풀 수 없으면 null, 이미 클리어면 빈 배열.
- * 방문 정규화 집합 + 휴리스틱 우선 DFS, 탐색 상한 초과 시 null.
- */
-export function findSolution(
-  start: Tube[],
-  maxStates: number = DEFAULT_MAX_STATES,
-): Move[] | null {
+type SearchNode = { tubes: Tube[]; parent: SearchNode | null; move: Move | null };
+
+function pathTo(node: SearchNode, lastMove: Move): Move[] {
+  const path = [lastMove];
+  for (let cursor: SearchNode | null = node; cursor?.move; cursor = cursor.parent) {
+    path.push(cursor.move);
+  }
+  return path.reverse();
+}
+
+/** Parent links avoid copying a growing solution array for every explored branch. */
+function* searchSolution(start: Tube[], maxStates: number): Generator<void, Move[] | null> {
   if (isCleared(start)) return [];
-
   const visited = new Set<string>([canonical(start)]);
-  const stack: Array<{ tubes: Tube[]; path: Move[] }> = [
-    { tubes: start, path: [] },
-  ];
+  const stack: SearchNode[] = [{ tubes: start, parent: null, move: null }];
   let explored = 0;
-
-  while (stack.length > 0) {
-    if (explored++ > maxStates) return null;
-    const { tubes, path } = stack.pop()!;
-
-    const candidates: Array<{ next: Tube[]; move: Move; score: number }> = [];
-    for (const [i, j] of legalMoves(tubes)) {
-      const res = pour(tubes[i], tubes[j]);
+  while (stack.length > 0 && explored < maxStates) {
+    explored += 1;
+    const node = stack.pop()!;
+    const candidates: Array<{ node: SearchNode; score: number }> = [];
+    for (const [i, j] of legalMoves(node.tubes)) {
+      const res = pour(node.tubes[i], node.tubes[j]);
       if (!res) continue;
-      const next = tubes.map((t, idx) =>
-        idx === i ? res.from : idx === j ? res.to : t,
+      const next = node.tubes.map((tube, index) =>
+        index === i ? res.from : index === j ? res.to : tube,
       );
-      if (isCleared(next)) return [...path, res.move];
-
+      if (isCleared(next)) return pathTo(node, res.move);
       const key = canonical(next);
       if (visited.has(key)) continue;
       visited.add(key);
-      candidates.push({ next, move: res.move, score: scoreMove(tubes[j], res) });
+      candidates.push({
+        node: { tubes: next, parent: node, move: res.move },
+        score: scoreMove(node.tubes[j], res),
+      });
     }
-
-    // 점수 오름차순으로 push → 가장 유망한 수가 스택 top(먼저 pop)
     candidates.sort((a, b) => a.score - b.score);
-    for (const c of candidates) {
-      stack.push({ tubes: c.next, path: [...path, c.move] });
-    }
+    for (const candidate of candidates) stack.push(candidate.node);
+    yield;
   }
-
   return null;
 }
 
-/**
- * 진척 있는 합법 수가 하나라도 있는지 — 막힘 감지(T142)용.
- * 단색 튜브→빈 튜브 재배치는 진척 없는 이동이라 합법 수로 치지 않는다
- * (그런 수만 남은 보드는 모든 튜브가 단색이면서 합칠 수 없는 상태 = 풀 수 없음).
- */
+/** A valid solution, not necessarily the shortest. Null also means the budget expired. */
+export function findSolution(start: Tube[], maxStates = DEFAULT_MAX_STATES): Move[] | null {
+  const search = searchSolution(start, maxStates);
+  let result = search.next();
+  while (!result.done) result = search.next();
+  return result.value;
+}
+
+export type SolutionOptions = { signal?: AbortSignal; maxStates?: number; batchSize?: number };
+
+/** Yields to input/render tasks before and during hints; cancelled searches return null. */
+export async function findSolutionAsync(
+  start: Tube[],
+  options: SolutionOptions = {},
+): Promise<Move[] | null> {
+  const { signal, maxStates = DEFAULT_ASYNC_MAX_STATES } = options;
+  const batchSize = Math.max(1, Math.floor(options.batchSize ?? DEFAULT_BATCH_SIZE));
+  const search = searchSolution(start, maxStates);
+  while (!signal?.aborted) {
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    if (signal?.aborted) return null;
+    const sliceStart = Date.now();
+    for (let count = 0; count < batchSize; count++) {
+      const result = search.next();
+      if (result.done) return result.value;
+      if (Date.now() - sliceStart >= MAX_SLICE_MS) break;
+    }
+  }
+  return null;
+}
+
 export function hasLegalMove(tubes: Tube[]): boolean {
   return legalMoves(tubes).length > 0;
 }
 
-/**
- * 보드가 풀 수 있는 상태인지 여부. 생성기 검증(T141)·막힘 감지(T142)용.
- */
-export function isSolvable(
-  tubes: Tube[],
-  maxStates: number = DEFAULT_MAX_STATES,
-): boolean {
+export function isSolvable(tubes: Tube[], maxStates = DEFAULT_MAX_STATES): boolean {
   return findSolution(tubes, maxStates) !== null;
 }

@@ -1,81 +1,120 @@
 import React from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 import { useTheme } from './ThemeProvider';
 
-// 웹 전용: Skia Canvas/Path 대신 inline SVG. 네이티브와 동일한 좌표·색으로 미니 보드를
-// 그리고, 액체 스트림은 strokeDasharray/offset CSS 애니메이션으로 흐르듯 재현한다.
-const W = 218;
-const H = 150;
-const TUBE_W = 34;
-const TUBE_H = 92;
-const BASE_Y = 124;
-const SEG_H = 22;
-const TUBE_X = [26, 92, 158];
-const ARC_LIFT = 34;
-const STREAM_DASH = 22; // 흐르는 액체 머리 길이(정규화 pathLength=100 기준)
-
-const LAYOUT: number[][] = [
-  [0, 1, 1],
-  [2, 0],
-  [1, 2, 0],
+const DEMO_BOARDS = [
+  [
+    [0, 0, 1, 1],
+    [1, 1],
+    [0, 0],
+  ],
+  [
+    [0, 0],
+    [1, 1, 1, 1],
+    [0, 0],
+  ],
+  [[0, 0, 0, 0], [1, 1, 1, 1], []],
 ];
 
-/** 온보딩용: 한 튜브에서 다른 튜브로 액체가 반복해서 흐르는 미니 일러스트 (웹) */
-export function OnboardingIllustration() {
+/** Show a legal matching-color pour, then the finished board, without an idle render loop. */
+export function OnboardingIllustration({ step = 0 }: { step?: number }) {
   const theme = useTheme();
-
-  const fromX = TUBE_X[0] + TUBE_W / 2;
-  const fromY = BASE_Y - LAYOUT[0].length * SEG_H;
-  const toX = TUBE_X[1] + TUBE_W / 2;
-  const toY = BASE_Y - LAYOUT[1].length * SEG_H;
-  const peakY = Math.min(fromY, toY) - ARC_LIFT;
-  const streamPath = `M ${fromX} ${fromY} C ${fromX} ${peakY} ${toX} ${peakY} ${toX} ${toY}`;
-  const streamColor =
-    theme.colors[LAYOUT[0][LAYOUT[0].length - 1] % theme.colors.length];
-
+  const board = DEMO_BOARDS[Math.min(step, DEMO_BOARDS.length - 1)];
   return (
-    <svg width={W} height={H} style={{ marginBottom: 28 }}>
-      {TUBE_X.map((x, ti) => (
-        <g key={ti}>
-          {LAYOUT[ti].map((colorId, si) => (
-            <rect
-              key={si}
-              x={x + 3}
-              y={BASE_Y - (si + 1) * SEG_H}
-              width={TUBE_W - 6}
-              height={SEG_H}
-              fill={theme.colors[colorId % theme.colors.length]}
-            />
-          ))}
-          <rect
-            x={x}
-            y={BASE_Y - TUBE_H}
-            width={TUBE_W}
-            height={TUBE_H}
-            rx={10}
-            fill="none"
-            stroke={theme.tubeOutline}
-            strokeWidth={2.5}
-          />
-        </g>
-      ))}
-
-      <path
-        d={streamPath}
-        pathLength={100}
-        fill="none"
-        stroke={streamColor}
-        strokeWidth={7}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        opacity={0.92}
-        style={{
-          strokeDasharray: `${STREAM_DASH} 100`,
-          animation: 'sortzen-stream 1.9s linear infinite',
-        }}
-      />
-      <style>
-        {`@keyframes sortzen-stream{from{stroke-dashoffset:100}to{stroke-dashoffset:-${STREAM_DASH}}}`}
-      </style>
-    </svg>
+    <View
+      style={styles.scene}
+      pointerEvents="none"
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
+      <View style={[styles.backdrop, { backgroundColor: theme.accentSoft }]} />
+      <View style={styles.tubes}>
+        {board.map((tube, index) => {
+          const full = tube.length === 4 && tube.every((color) => color === tube[0]);
+          const selected = step === 0 && index === 0;
+          return (
+            <View key={index} style={[styles.tubeColumn, selected && styles.selected]}>
+              <Text
+                style={[
+                  styles.marker,
+                  { color: selected ? theme.accent : full ? theme.success : 'transparent' },
+                ]}
+              >
+                {full ? '✓' : '↓'}
+              </Text>
+              <View
+                style={[
+                  styles.rim,
+                  {
+                    borderColor: selected ? theme.accent : theme.tubeOutline,
+                    backgroundColor: theme.surface,
+                  },
+                ]}
+              />
+              <View
+                style={[
+                  styles.tube,
+                  {
+                    borderColor: selected ? theme.accent : theme.tubeOutline,
+                    backgroundColor: theme.surface,
+                  },
+                ]}
+              >
+                {tube
+                  .slice()
+                  .reverse()
+                  .map((color, layer) => (
+                    <View
+                      key={layer}
+                      style={[styles.liquid, { backgroundColor: theme.colors[color] }]}
+                    />
+                  ))}
+                <View style={styles.shine} />
+              </View>
+            </View>
+          );
+        })}
+      </View>
+      {step === 0 && <Text style={[styles.arrow, { color: theme.accent }]}>→</Text>}
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  scene: {
+    width: 260,
+    height: 224,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  backdrop: { position: 'absolute', width: 208, height: 208, borderRadius: 104 },
+  tubes: { flexDirection: 'row', alignItems: 'flex-end', gap: 24 },
+  tubeColumn: { width: 44 },
+  selected: { transform: [{ translateY: -10 }] },
+  marker: { fontSize: 22, height: 32, fontWeight: '700', textAlign: 'center' },
+  rim: { height: 8, borderWidth: 1.5, borderRadius: 4, zIndex: 1 },
+  tube: {
+    height: 132,
+    marginTop: -3,
+    marginHorizontal: 3,
+    padding: 3,
+    paddingTop: 0,
+    borderWidth: 1.5,
+    borderBottomLeftRadius: 21,
+    borderBottomRightRadius: 21,
+    overflow: 'hidden',
+    justifyContent: 'flex-end',
+  },
+  liquid: { height: 28 },
+  shine: {
+    position: 'absolute',
+    width: 4,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.45)',
+    left: 7,
+    top: 12,
+    bottom: 12,
+  },
+  arrow: { position: 'absolute', fontSize: 28, top: 20, left: 87 },
+});

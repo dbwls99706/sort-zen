@@ -1,8 +1,8 @@
-import { generateLevel, GenParams } from '../generator';
+import { generateLevel, generateLevelWithSolution, GenParams } from '../generator';
 import { getDifficulty } from '../difficulty';
 import { isSolvable } from '../solver';
-import { isTubeComplete } from '../rules';
-import { DEFAULT_CAPACITY } from '../constants';
+import { isTubeComplete, pour, isCleared } from '../rules';
+import { DEFAULT_CAPACITY, MAX_SHUFFLE_STEPS } from '../constants';
 
 function makeParams(overrides: Partial<GenParams> = {}): GenParams {
   return {
@@ -28,9 +28,7 @@ describe('generator', () => {
     const params = makeParams({ colors: 4, filledTubes: 4 });
     const tubes = generateLevel(params);
     const counts: Record<number, number> = {};
-    tubes.forEach((t) =>
-      t.layers.forEach((c) => (counts[c] = (counts[c] || 0) + 1)),
-    );
+    tubes.forEach((t) => t.layers.forEach((c) => (counts[c] = (counts[c] || 0) + 1)));
     Object.values(counts).forEach((n) => expect(n).toBe(params.capacity));
   });
 
@@ -72,7 +70,7 @@ describe('generator', () => {
     expect(total).toBe(params.filledTubes * params.capacity);
   });
 
-  // T141: 솔버블 검증 게이트 — 빈튜브 1개로 비-솔버블이던 고레벨도 보장
+  // Every generated difficulty retains a playable solution.
   test('모든 난이도 레벨이 솔버블한 보드를 생성한다', () => {
     for (const level of [1, 30, 60, 100, 120, 150, 200]) {
       const params = { ...getDifficulty(level), seed: `gate-${level}` };
@@ -81,8 +79,7 @@ describe('generator', () => {
     }
   });
 
-  // 단색 튜브 재시도 경로가 seedRetry 예산으로 제한되어 무한 재귀하지 않는다.
-  // 작은 보드 + 높은 셔플은 단색 튜브가 자주 남아 재시도 경로를 탄다.
+  // Regression coverage for the formerly recursive generator.
   test('많은 시드에서 항상 종료하고 솔버블 보드를 반환한다 (재귀 무한루프 회귀)', () => {
     for (let i = 0; i < 100; i++) {
       const params = makeParams({
@@ -115,15 +112,61 @@ describe('generator', () => {
     }
   });
 
-  test('빈튜브 보강 fallback 후에도 색상은 capacity개로 보존된다', () => {
-    // 레벨 150은 빈튜브 1개로 사실상 항상 비-솔버블 → fallback 경로를 탄다
+  test('높은 레벨에서도 색상과 풀 수 있는 보드를 보존한다', () => {
     const params = { ...getDifficulty(150), seed: 'fallback-150' };
     const tubes = generateLevel(params);
     const counts: Record<number, number> = {};
-    tubes.forEach((t) =>
-      t.layers.forEach((c) => (counts[c] = (counts[c] || 0) + 1)),
-    );
+    tubes.forEach((t) => t.layers.forEach((c) => (counts[c] = (counts[c] || 0) + 1)));
     Object.values(counts).forEach((n) => expect(n).toBe(params.capacity));
     expect(isSolvable(tubes)).toBe(true);
+  });
+});
+
+describe('bounded constructive generation', () => {
+  test('generated solution replays exact legal pours across capacities and tube counts', () => {
+    for (const capacity of [2, 3, 4, 5]) {
+      for (const colors of [3, 6, 9, 12]) {
+        for (const emptyTubes of [1, 2, 3]) {
+          for (let seed = 0; seed < 4; seed++) {
+            const { tubes, solution } = generateLevelWithSolution(
+              makeParams({
+                colors,
+                filledTubes: colors,
+                capacity,
+                emptyTubes,
+                shuffleSteps: colors * 12,
+                seed: `replay-${capacity}-${colors}-${emptyTubes}-${seed}`,
+              }),
+            );
+            let current = tubes;
+            for (const move of solution) {
+              const from = current.find((tube) => tube.id === move.from)!;
+              const to = current.find((tube) => tube.id === move.to)!;
+              const result = pour(from, to);
+              expect(result?.move).toEqual(move);
+              current = current.map((tube) =>
+                tube.id === from.id ? result!.from : tube.id === to.id ? result!.to : tube,
+              );
+            }
+            expect(isCleared(current)).toBe(true);
+            expect(tubes).toHaveLength(colors + emptyTubes);
+            expect(tubes.every((tube) => tube.layers.length <= capacity)).toBe(true);
+          }
+        }
+      }
+    }
+  });
+
+  test('extreme shuffle requests have the same bounded work as the configured cap', () => {
+    const params = makeParams({ colors: 12, filledTubes: 12, seed: 'bounded' });
+    expect(generateLevelWithSolution({ ...params, shuffleSteps: 1_000_000_000 })).toEqual(
+      generateLevelWithSolution({ ...params, shuffleSteps: MAX_SHUFFLE_STEPS }),
+    );
+  });
+
+  test('zero shuffle returns a solved board and empty solution', () => {
+    const generated = generateLevelWithSolution(makeParams({ shuffleSteps: 0 }));
+    expect(isCleared(generated.tubes)).toBe(true);
+    expect(generated.solution).toEqual([]);
   });
 });
